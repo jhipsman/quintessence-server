@@ -77,3 +77,47 @@ String fields known by name (numbers unknown unless noted):
 - Worlds are filtered: `MainMenu.IsWorldVersionMatch`; "When enabled, UI will show worlds which are flagged as hidden"; `SelectWorldByType - Invalid match. worldType=%d; best world=%s, type=%d, version=%s`. `Unable to find %s world, will use default/empty world id.`
 - Character limits: `MaxAccountCharacters`, `MaxChannelCharacters`, `TooManyCharactersForWorld`.
 - `World Metrics: worldAgeDays=%d, queueSize=%d, queueWaitTimeSec=%d, worldPopulationStatus=%s`.
+
+## Recovered from the client's code (2026-10-22)
+
+The message layouts below come from the client's own `_InternalSerialize` functions (`tools/re/`); all 126 `Javelin.RPC` messages are in `schema-1.400.6031.txt`. Names in *italics* are inferred from how the client uses the field.
+
+```
+GetLoginInfoRequest   { 1 PersonaId; 2 string channel_id; 3 bool }
+GetLoginInfoResult    { 1 int32 *error* (non-zero = the client shows an error);
+                        2 repeated WorldPublicMetadata; 3 repeated CharacterMetadata;
+                        4 repeated CharacterNameData; 5 uint32; 6 uint32;
+                        7 repeated PendingWorldMerge }
+WorldPublicMetadata   { 1 id; 2 name; 3 status; 4 int32 *publicStatusCode*; 5 version;
+                        6 publicName; 7 worldType; 8 int32 *maxAccountCharacters*; 9 worldSet;
+                        10 WorldMetrics; 11 transferToRegion; 12 bool *isFull*; 13 bool *isRecommended* }
+WorldMetrics          { 1 int32 *worldAgeDays*; 2 int32 *queueSize*; 3 int32 *queueWaitTimeSec*;
+                        4 worldPopulationStatus }
+CharacterMetadata     { 1 character_id; 2 persona_id; 3 world_id; 4 name;
+                        5 PublishedCharacterMetadata; 6 published_source; 7 uint32; 8 CharacterTransferData;
+                        9, 10 bool; 11 bytes; 12 published_social_source; 13 uint32; 14 status;
+                        15 transfer_date; 16 region_transfer_date; 17, 18 bool; 19 must_rename_reason;
+                        20 name_modified_date; 21 modified_date; 22 name_latent_date;
+                        23 must_transfer_date; 24, 25 bool }
+CreateCharacterRequest  { 1 PersonaId; 2 CharacterCreationParameters; 3 world_id }
+CharacterCreationParameters { 1 name; 2 PublishedCharacterMetadata; 3 bytes; 4 bool }
+CreateCharacterResult   { 1 int32 *error*; 2 character_id }
+ValidateCharacterRequest{ 1 world_id; 2 name }      ValidateCharacterResult { 1 int32 *error* }
+QueueLoginRequest     { 1 PersonaId; 2 character_id; 3 uint32; 4 steam_user_id; 5 world_id; 6 bool }
+QueueLoginResult      { 1 int32 *error*; 2 ticket_id; 3 QueueStats {1,2,3 int32}; 4 LoginToken }
+LoginToken            { 1 rep_endpoint; 2 world_id; 3 character_id; 4 persona_id; 5 uint32;
+                        6 steam_user_id; 7 uint32; 8 signature; 9 client_capabilities; 10 ticket_id;
+                        11 int32; 12 locationGroup_id; 13 location_id; 14 uint32; 15 bool; 16 host_hash;
+                        17 bool; 18 match_id; 19 src_world_id; 20 jwt_claims; 21 bool }
+```
+
+What the client checks:
+
+- **GetLoginInfoResult field 1 must be 0**, or the callback reports an error instead of converting the result.
+- **World version:** a world matches when its `version` *contains* the build's changelist `6004151` (`1.400.6031.6004151` does), unless `javelin.select-world-allow-version-mismatch` is set (fn `0x1441dcda0`).
+- **worldType:** `"FTUE"` → 0, `"OpenWorld"` → 1, anything else → 2 (fn `0x1417c40a0`).
+- **Character status:** a character is active when `status == "ACTIVE"` (fn `0x1417423e0`).
+- The client's world record, as its UI scripts see it: `worldAgeDays, queueSize, queueWaitTimeSec, worldPopulationStatus, publicStatusCode, publicName, maxAccountCharacters, worldSet, worldMetrics, transferToRegion, isFull, isRecommended`.
+- Useful console variables: `g_showHiddenWorlds`, `g_loginQueueBypass`, `g_maintenanceModeBypass`, `g_createCharacterAccountLimitBypass`, `g_selectWorldId`, `g_loginWithWorldTypes`.
+
+Probe results, explained: probe 1's character pointed at world `@3@3@_@_` while the world's id was `@2@1@_@_` ("World Unavailable"); in probes 2 and 3 the ids matched but the world's version (`@W@W@W@W`) failed the version check, taking its characters with it.

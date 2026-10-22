@@ -1,0 +1,640 @@
+message Javelin.RPC.AbandonRequest {
+  string character_id = 1;
+}
+message Javelin.RPC.AbandonResponse {
+}
+message Javelin.RPC.AcceptRequest {
+}
+message Javelin.RPC.AcceptResponse {
+}
+message Javelin.RPC.Achievement {
+  uint32 f1 = 1;
+  helper_14609e2a0 f2 = 2;
+}
+message Javelin.RPC.CatalogOffer {
+  string productId = 1;
+  string offerId = 2;
+  string name = 3;
+  string description = 4;
+  uint32 f5 = 5;
+  uint32 f6 = 6;
+  string productType = 7;
+  string startDate = 8;
+  string endDate = 9;
+  repeated msg:Javelin.RPC.InGameCurrencyPrice f10 = 10;
+  msg:Javelin.RPC.Price f11 = 11;
+  repeated msg:Javelin.RPC.CatalogOffer.Entitlement f12 = 12;
+  string metadata = 13;
+  string offerType = 14;
+  bool f15 = 15;
+  string alias = 17;
+  string productStartDate = 18;
+  string productEndDate = 19;
+}
+message Javelin.RPC.CatalogOffer.Entitlement {
+  string alias = 1;
+  string id = 2;
+  int32 f3 = 3;
+  string metadata = 4;
+}
+message Javelin.RPC.CharacterCreationParameters {
+  string name = 1;
+  msg:Javelin.RPC.PublishedCharacterMetadata f2 = 2;
+  bytes f3 = 3;
+  bool f4 = 4;
+}
+message Javelin.RPC.CharacterMetadata {
+  string character_id = 1;
+  string persona_id = 2;
+  string world_id = 3;
+  string name = 4;
+  msg:Javelin.RPC.PublishedCharacterMetadata f5 = 5;
+  string published_source = 6;
+  uint32 f7 = 7;
+  msg:Javelin.RPC.CharacterTransferData f8 = 8;
+  bool f9 = 9;
+  bool f10 = 10;
+  bytes f11 = 11;
+  string published_social_source = 12;
+  uint32 f13 = 13;
+  string status = 14;
+  string transfer_date = 15;
+  string region_transfer_date = 16;
+  bool f17 = 17;
+  bool f18 = 18;
+  string must_rename_reason = 19;
+  string name_modified_date = 20;
+  string modified_date = 21;
+  string name_latent_date = 22;
+  string must_transfer_date = 23;
+  bool f24 = 24;
+  bool f25 = 25;
+}
+message Javelin.RPC.CharacterNameData {
+  string persona_id = 1;
+  string world_id = 2;
+  string region = 3;
+  string character_name = 4;
+  string creation_date = 5;
+  string owning_resource_id = 6;
+  string modified_date = 7;
+  string name_latent_date = 8;
+  bool f9 = 9;
+}
+message Javelin.RPC.CharacterPosition {
+  helper_1460efb00 f1 = 1;
+  helper_1460efb00 f2 = 2;
+  helper_1460efb00 f3 = 3;
+}
+message Javelin.RPC.CharacterTransferData {
+  string from_world_id = 1;
+  int32 f2 = 2;
+  helper_1460efa80 f3 = 3;
+  repeated msg:?inlined@1460cc3c0 f4 = 4;
+  repeated msg:Javelin.RPC.TransferData_Item f5 = 5;
+  repeated msg:?inlined@1460cc7e0 f6 = 6;
+  repeated msg:?inlined@1460cc980 f11 = 11;
+  bool f12 = 12;
+  repeated msg:?inlined@1460cc200 f13 = 13;
+  repeated msg:Javelin.RPC.TransferData_ProgressionPoolEntry f14 = 14;
+  repeated msg:?inlined@1460cc040 f15 = 15;
+}
+message Javelin.RPC.CleanupWorldRequest {
+  string world_id = 1;
+  int32 f2 = 2;
+}
+message Javelin.RPC.CleanupWorldResponse {
+}
+message Javelin.RPC.ConfigureBackfillRequest {
+  string match_id = 1;
+  bool f2 = 2;
+}
+message Javelin.RPC.ConfigureBackfillResponse {
+}
+message Javelin.RPC.ConfirmTransactionRequest {
+  string transactionId = 1;
+  repeated msg:Javelin.RPC.TransactionEntitlement f2 = 2;
+  repeated msg:Javelin.RPC.TransactionEntitlement f3 = 3;
+}
+message Javelin.RPC.ConfirmTransactionResult {
+  int32 f1 = 1;
+  repeated msg:Javelin.RPC.Entitlement f2 = 2;
+}
+message Javelin.RPC.CreateCharacterRequest {
+  msg:?inlined@1460cb7c0 f1 = 1;
+  msg:Javelin.RPC.CharacterCreationParameters f2 = 2;
+  string world_id = 3;
+}
+message Javelin.RPC.CreateCharacterResult {
+  int32 f1 = 1;
+  string character_id = 2;
+}
+message Javelin.RPC.CreateOrUpdateAgsPrivacySettingsRequest {
+  string player_id = 1;
+  string setting_alias = 2;
+  string setting_value = 3;
+}
+message Javelin.RPC.CreateOrUpdateAgsPrivacySettingsResult {
+  repeated msg:?inlined@1460cb950 f1 = 1;
+}
+message Javelin.RPC.DeactivateCharacterRequest {
+  string character_id = 1;
+}
+message Javelin.RPC.DeactivateCharacterResult {
+  int32 f1 = 1;
+}
+message Javelin.RPC.DebugStartMatchRequest {
+  string match_id = 1;
+}
+message Javelin.RPC.DebugStartMatchResponse {
+}
+message Javelin.RPC.DeleteTransactionRequest {
+  string transactionId = 1;
+}
+message Javelin.RPC.DeleteTransactionResult {
+  int32 f1 = 1;
+  repeated msg:Javelin.RPC.Entitlement f2 = 2;
+}
+message Javelin.RPC.Entitlement {
+  string id = 1;
+  string alias = 2;
+  string name = 3;
+  string lastUpdated = 4;
+  int32 f5 = 5;
+  msg:Javelin.RPC.Entitlement.Amount f6 = 6;
+}
+message Javelin.RPC.Entitlement.Amount {
+}
+message Javelin.RPC.EntitlementList {
+  repeated msg:Javelin.RPC.Entitlement f1 = 1;
+  string lastUpdatedDate = 2;
+  bool f3 = 3;
+}
+message Javelin.RPC.GetAchievementsRequest {
+  msg:?inlined@1460cb7c0 f1 = 1;
+  helper_14609e2a0 f2 = 2;
+  string start_key = 3;
+}
+message Javelin.RPC.GetAchievementsResult {
+  repeated msg:?inlined@1460cb020 f1 = 1;
+  string last_evaluated_key = 2;
+}
+message Javelin.RPC.GetAgsPrivacySettingsRequest {
+  string player_id = 1;
+}
+message Javelin.RPC.GetAgsPrivacySettingsResult {
+  repeated msg:?inlined@1460cb950 f1 = 1;
+}
+message Javelin.RPC.GetCatalogRequest {
+  string catalogType = 1;
+  string eTag = 2;
+}
+message Javelin.RPC.GetCatalogResult {
+  int32 f1 = 1;
+  string eTag = 2;
+  repeated msg:Javelin.RPC.CatalogOffer f3 = 3;
+}
+message Javelin.RPC.GetCharacterListResult {
+  int32 f1 = 1;
+  repeated msg:Javelin.RPC.CharacterMetadata f2 = 2;
+}
+message Javelin.RPC.GetCharactersPayloadResult {
+  int32 f1 = 1;
+  repeated msg:Javelin.RPC.CharacterMetadata f2 = 2;
+  uint32 f3 = 3;
+  uint32 f4 = 4;
+}
+message Javelin.RPC.GetGameCharacterNamesResult {
+  int32 f1 = 1;
+  repeated msg:Javelin.RPC.CharacterNameData f2 = 2;
+}
+message Javelin.RPC.GetLeaderboardRequest {
+}
+message Javelin.RPC.GetLeaderboardResult {
+  repeated msg:Javelin.RPC.LeaderboardRow f1 = 1;
+}
+message Javelin.RPC.GetLeaderboardStatsRequest {
+}
+message Javelin.RPC.GetLeaderboardStatsResult {
+  repeated msg:Javelin.RPC.StatResult f1 = 1;
+}
+message Javelin.RPC.GetLoginInfoRequest {
+  msg:?inlined@1460cb7c0 f1 = 1;
+  string channel_id = 2;
+  bool f3 = 3;
+}
+message Javelin.RPC.GetLoginInfoResult {
+  int32 f1 = 1;
+  repeated msg:Javelin.RPC.WorldPublicMetadata f2 = 2;
+  repeated msg:Javelin.RPC.CharacterMetadata f3 = 3;
+  repeated msg:Javelin.RPC.CharacterNameData f4 = 4;
+  uint32 f5 = 5;
+  uint32 f6 = 6;
+  repeated msg:Javelin.RPC.PendingWorldMerge f7 = 7;
+}
+message Javelin.RPC.GetMatchRequest {
+  string match_id = 1;
+}
+message Javelin.RPC.GetMatchResponse {
+  msg:Javelin.RPC.MatchInfo f1 = 1;
+}
+message Javelin.RPC.GetTransactionsRequest {
+  uint32 f1 = 1;
+  string startDate = 2;
+  string endDate = 3;
+  string type = 4;
+}
+message Javelin.RPC.GetTransactionsResult {
+  int32 f1 = 1;
+  repeated msg:Javelin.RPC.TransactionInfo f2 = 2;
+  bool f3 = 3;
+}
+message Javelin.RPC.InGameCurrencyPrice {
+  int32 f1 = 1;
+  int32 f2 = 2;
+  int32 f3 = 3;
+  string currencyEntitlementAlias = 4;
+  string currencyEntitlementId = 5;
+  string currencyEntitlementName = 6;
+  repeated msg:Javelin.RPC.InGameCurrencyPrice.ProratedInfo f7 = 7;
+}
+message Javelin.RPC.InGameCurrencyPrice.ProratedInfo {
+  string productId = 1;
+  string alias = 2;
+  uint32 f3 = 3;
+}
+message Javelin.RPC.InitializeTransactionRequest {
+  string clientTransactionId = 1;
+  string transactionType = 2;
+  string productId = 3;
+  string offerId = 4;
+  string inGameCurrencyAlias = 5;
+  int32 f6 = 6;
+  repeated msg:Javelin.RPC.TransactionEntitlement f7 = 7;
+  repeated msg:Javelin.RPC.TransactionEntitlement f8 = 8;
+  repeated msg:Javelin.RPC.TransactionEntitlement f9 = 9;
+  repeated msg:?inlined@1460cb5f0 f10 = 10;
+}
+message Javelin.RPC.InitializeTransactionResult {
+  int32 f1 = 1;
+  string transactionId = 2;
+}
+message Javelin.RPC.JoinRequest {
+  string activity_type = 1;
+  string src_world_id = 2;
+  string group_id = 3;
+  repeated msg:Javelin.RPC.Participant f4 = 4;
+}
+message Javelin.RPC.JoinResponse {
+}
+message Javelin.RPC.LeaderboardDimension {
+  string week = 1;
+  string month = 2;
+  string season = 3;
+  string server = 4;
+  string expedition = 5;
+}
+message Javelin.RPC.LeaderboardRow {
+  string entity_id = 1;
+  helper_14609e2a0 f2 = 2;
+  uint32 f3 = 3;
+}
+message Javelin.RPC.LeaderboardStatUpdate {
+  uint32 f1 = 1;
+  helper_14609e2a0 f2 = 2;
+}
+message Javelin.RPC.LeaveRequest {
+  string group_id = 1;
+  string character_id = 2;
+}
+message Javelin.RPC.LeaveResponse {
+}
+message Javelin.RPC.LinkIdentityRequest {
+  string twitch_token = 1;
+  string steam_token = 3;
+}
+message Javelin.RPC.LinkIdentityResult {
+}
+message Javelin.RPC.ListWorldsRequest {
+  string cognitoPoolId = 2;
+  repeated msg:Javelin.RPC.ListWorldsRequest.Filter f3 = 3;
+}
+message Javelin.RPC.ListWorldsRequest.Filter {
+  string filterType = 1;
+}
+message Javelin.RPC.ListWorldsResult {
+  int32 f1 = 1;
+  repeated msg:Javelin.RPC.WorldPublicMetadata f2 = 2;
+  repeated msg:?inlined@1460cbdb0 f3 = 3;
+}
+message Javelin.RPC.LoginToken {
+  string rep_endpoint = 1;
+  string world_id = 2;
+  string character_id = 3;
+  string persona_id = 4;
+  uint32 f5 = 5;
+  string steam_user_id = 6;
+  uint32 f7 = 7;
+  string signature = 8;
+  string client_capabilities = 9;
+  string ticket_id = 10;
+  int32 f11 = 11;
+  string locationGroup_id = 12;
+  string location_id = 13;
+  uint32 f14 = 14;
+  bool f15 = 15;
+  string host_hash = 16;
+  bool f17 = 17;
+  string match_id = 18;
+  string src_world_id = 19;
+  string jwt_claims = 20;
+  bool f21 = 21;
+}
+message Javelin.RPC.MatchInfo {
+  string match_id = 1;
+  string activity_type = 2;
+  repeated msg:?inlined@14610b260 f3 = 3;
+  int32 f4 = 4;
+  int32 f5 = 5;
+  string world_id = 6;
+  bool f7 = 7;
+  string attributes_json = 8;
+}
+message Javelin.RPC.MetadataElement {
+  string key = 1;
+  string value = 2;
+}
+message Javelin.RPC.MetadataListElement {
+}
+message Javelin.RPC.NotificationAttribute {
+  string key = 1;
+  string value = 2;
+}
+message Javelin.RPC.NotificationMessage {
+  string id = 1;
+  string body = 2;
+  repeated msg:?inlined@146114230 f3 = 3;
+}
+message Javelin.RPC.NotifyLeftGroupRequest {
+  string match_id = 1;
+  string character_id = 2;
+}
+message Javelin.RPC.NotifyLeftGroupResponse {
+}
+message Javelin.RPC.Participant {
+  string group_id = 1;
+  string character_id = 2;
+  string world_id = 3;
+  string attributes_json = 4;
+  int32 f5 = 5;
+}
+message Javelin.RPC.PatchCharacterRequest {
+  string character_id = 1;
+  bool f2 = 2;
+  string name = 3;
+  bool f4 = 4;
+  bool f5 = 5;
+  bool f6 = 6;
+  string world_id = 7;
+  bool f8 = 8;
+  bool f9 = 9;
+}
+message Javelin.RPC.PatchCharacterResult {
+  int32 f1 = 1;
+}
+message Javelin.RPC.PendingWorldMerge {
+  string sourceWorldId = 1;
+  string targetWorldId = 2;
+  string scheduledDate = 3;
+}
+message Javelin.RPC.PersonaId {
+  string id = 1;
+}
+message Javelin.RPC.PollForMatchRequest {
+  string world_id = 1;
+}
+message Javelin.RPC.PollForMatchResponse {
+  msg:Javelin.RPC.MatchInfo f1 = 1;
+}
+message Javelin.RPC.Price {
+  helper_1460efa80 f1 = 1;
+  helper_1460efa80 f2 = 2;
+  int32 f3 = 3;
+  string currencyCode = 4;
+  string countryCode = 5;
+}
+message Javelin.RPC.PriceInfo {
+  int32 f1 = 1;
+  int32 f2 = 2;
+  string currency = 3;
+}
+message Javelin.RPC.PrivacySetting {
+  string alias = 1;
+  string value = 2;
+}
+message Javelin.RPC.PublishedCharacterMetadata {
+  helper_14609e2a0 f1 = 1;
+  bytes f2 = 2;
+  helper_1460cb360 f3 = 3;
+  helper_1460efb00 f4 = 4;
+  string world_id = 5;
+}
+message Javelin.RPC.QueueLoginRequest {
+  msg:?inlined@1460cb7c0 f1 = 1;
+  string character_id = 2;
+  uint32 f3 = 3;
+  string steam_user_id = 4;
+  string world_id = 5;
+  bool f6 = 6;
+}
+message Javelin.RPC.QueueLoginResult {
+  int32 f1 = 1;
+  string ticket_id = 2;
+  msg:?inlined@1460cbbf0 f3 = 3;
+  msg:Javelin.RPC.LoginToken f4 = 4;
+}
+message Javelin.RPC.QueueStats {
+  int32 f1 = 1;
+  int32 f2 = 2;
+  int32 f3 = 3;
+}
+message Javelin.RPC.ReceiveMessagesRequest {
+  string world_id = 1;
+}
+message Javelin.RPC.ReceiveMessagesResponse {
+  repeated msg:Javelin.RPC.NotificationMessage f1 = 1;
+}
+message Javelin.RPC.RecommendedWorld {
+  string recommendationType = 1;
+  msg:Javelin.RPC.WorldPublicMetadata f2 = 2;
+}
+message Javelin.RPC.RefreshQueuedLoginRequest {
+  string ticket_id = 1;
+}
+message Javelin.RPC.RefundTransactionRequest {
+  string transactionId = 1;
+  string reason = 2;
+  string policy = 3;
+  string refundType = 4;
+}
+message Javelin.RPC.RefundTransactionResult {
+  int32 f1 = 1;
+}
+message Javelin.RPC.ResetAccountRequest {
+  msg:?inlined@1460cb7c0 f1 = 1;
+}
+message Javelin.RPC.ResetAchievementRequest {
+  msg:?inlined@1460cb7c0 f1 = 1;
+  uint32 f2 = 2;
+}
+message Javelin.RPC.ResetEntitlementRequest {
+  string entitlementId = 1;
+}
+message Javelin.RPC.StatResult {
+  string stat_id = 1;
+  string entity_id = 2;
+  helper_14609e2a0 f3 = 3;
+}
+message Javelin.RPC.Subteam {
+  repeated msg:Javelin.RPC.Participant f1 = 1;
+}
+message Javelin.RPC.SyncEntitlementsRequest {
+}
+message Javelin.RPC.SyncPrimeGamingRequest {
+  string transactionId = 1;
+  string sku = 2;
+}
+message Javelin.RPC.Team {
+  repeated helper_14610b0f0 f1 = 1;
+  int32 f2 = 2;
+}
+message Javelin.RPC.TransactionEntitlement {
+  string alias = 1;
+  string id = 2;
+  int32 f3 = 3;
+  repeated msg:?inlined@1460cb5f0 f4 = 4;
+}
+message Javelin.RPC.TransactionInfo {
+  string type = 1;
+  string clientTransactionId = 2;
+  string transactionId = 3;
+  string errorReasonCode = 4;
+  string createDate = 5;
+  string lastUpdatedDate = 6;
+  string transactionState = 7;
+  string context = 8;
+}
+message Javelin.RPC.TransferData_Ability {
+  uint32 f1 = 1;
+  uint32 f2 = 2;
+  uint32 f3 = 3;
+}
+message Javelin.RPC.TransferData_CategoricalProgression {
+  uint32 f1 = 1;
+  uint32 f2 = 2;
+  helper_14609e2a0 f3 = 3;
+}
+message Javelin.RPC.TransferData_EquippedItem {
+  int32 f1 = 1;
+  msg:Javelin.RPC.TransferData_Item f2 = 2;
+}
+message Javelin.RPC.TransferData_Item {
+  uint32 f1 = 1;
+  uint32 f2 = 2;
+  uint32 f3 = 3;
+  uint32 f4 = 4;
+  uint32 f5 = 5;
+  uint32 f6 = 6;
+  string slot_index = 7;
+  int32 f8 = 8;
+  uint32 f9 = 9;
+}
+message Javelin.RPC.TransferData_ProgressionPoint {
+  uint32 f1 = 1;
+  uint32 f2 = 2;
+}
+message Javelin.RPC.TransferData_ProgressionPoolEntry {
+  uint32 f1 = 1;
+  uint32 f2 = 2;
+  uint32 f3 = 3;
+  repeated msg:?inlined@1460cc640 f4 = 4;
+}
+message Javelin.RPC.TransferData_Stat {
+  int32 f1 = 1;
+  int32 f2 = 2;
+}
+message Javelin.RPC.TransferData_Vitals {
+  int32 f1 = 1;
+  helper_1460efa80 f2 = 2;
+}
+message Javelin.RPC.UnlinkIdentityRequest {
+  string twitch_token = 3;
+}
+message Javelin.RPC.UnlinkIdentityResult {
+}
+message Javelin.RPC.UnlockAchievementRequest {
+  repeated msg:?inlined@1460cb020 f1 = 1;
+  msg:?inlined@1460cb7c0 f2 = 2;
+}
+message Javelin.RPC.UnlockAchievementsRequest {
+  repeated helper_1460ccb20 f1 = 1;
+}
+message Javelin.RPC.UpdateLeaderboardStatRequest {
+  string entity_id = 1;
+  repeated msg:?inlined@1460cb020 f2 = 2;
+  msg:Javelin.RPC.LeaderboardDimension f3 = 3;
+}
+message Javelin.RPC.UpdateLeaderboardStatsRequest {
+  string updateJson = 1;
+  string request_id = 2;
+}
+message Javelin.RPC.UpdateMatchStatusRequest {
+  string match_id = 1;
+  int32 f2 = 2;
+  string world_id = 3;
+}
+message Javelin.RPC.UpdateMatchStatusResponse {
+}
+message Javelin.RPC.UpdateStatResult {
+  bool f1 = 1;
+  string request_id = 2;
+}
+message Javelin.RPC.ValidateCharacterRequest {
+  string world_id = 1;
+  string name = 2;
+}
+message Javelin.RPC.ValidateCharacterResult {
+  int32 f1 = 1;
+}
+message Javelin.RPC.WorldList {
+  repeated msg:Javelin.RPC.WorldPublicMetadata f1 = 1;
+}
+message Javelin.RPC.WorldMetrics {
+  int32 f1 = 1;
+  int32 f2 = 2;
+  int32 f3 = 3;
+  string worldPopulationStatus = 4;
+}
+message Javelin.RPC.WorldPublicMetadata {
+  string id = 1;
+  string name = 2;
+  string status = 3;
+  int32 f4 = 4;
+  string version = 5;
+  string publicName = 6;
+  string worldType = 7;
+  int32 f8 = 8;
+  string worldSet = 9;
+  msg:Javelin.RPC.WorldMetrics f10 = 10;
+  string transferToRegion = 11;
+  bool f12 = 12;
+  bool f13 = 13;
+}
+
+# unclassified helpers:
+helper_14609e2a0 7 ['Javelin.RPC.Achievement.2', 'Javelin.RPC.GetAchievementsRequest.2', 'Javelin.RPC.LeaderboardRow.2', 'Javelin.RPC.LeaderboardStatUpdate.2', 'Javelin.RPC.PublishedCharacterMetadata.1', 'Javelin.RPC.StatResult.3']
+helper_1460efb00 4 ['Javelin.RPC.CharacterPosition.1', 'Javelin.RPC.CharacterPosition.2', 'Javelin.RPC.CharacterPosition.3', 'Javelin.RPC.PublishedCharacterMetadata.4']
+helper_1460efa80 4 ['Javelin.RPC.CharacterTransferData.3', 'Javelin.RPC.Price.1', 'Javelin.RPC.Price.2', 'Javelin.RPC.TransferData_Vitals.2']
+helper_1460cb360 1 ['Javelin.RPC.PublishedCharacterMetadata.3']
+helper_14610b0f0 1 ['Javelin.RPC.Team.1']
+helper_1460ccb20 1 ['Javelin.RPC.UnlockAchievementsRequest.1']

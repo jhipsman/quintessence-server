@@ -12,6 +12,7 @@ The first step towards a server for the Quintessence launcher. It does **not** p
 ## What it does
 
 - Listens on **UDP and TCP** on one port (default `6000`).
+- **Answers the login gateway for real** (`-reply gateway`, the default; `gateway.go`): one world, "Quintessence", that passes the client's version check; character creation, listing and deletion, kept per player name in `characters.json` next to the `captures` folder; and a login queue that lets you straight in, with a login token pointing back at this server. Message layouts come from the client's own code: see `docs/PROTOCOL.md`.
 - A TCP connection that opens with the HTTP/2 preface goes to a **gRPC server that accepts any method**. It logs the method name (for example `/package.Service/Method`), the metadata and every message, decoded as protobuf by field number since we have no schema. Once the client has sent everything, it answers with an **empty message and OK** (`-reply empty`). An empty message is valid for every message type, with every field at its default, so the client takes it as a success and shows us its next step. `-reply unimplemented` answers `Unimplemented` instead. `-reply probe` answers `GetLoginInfo` with the **probe message** (see `probe.go`): every field number filled, two levels deep, with values that are safe whatever the real field type is, and whose text is a label of its own position. If the game shows a world called `@3@2@_@_`, the world list is field 3 and the name is field 2 (fields 10-20 are written `a`-`k`). The default, `-reply probe2`, gives every text the same value `@W@W@W@W`, so a world's id and a character's world id match whichever fields they are, and names characters (field 3, then 4) `@N@a@m@e`.
 - Logs every packet, both directions, as a hex dump. DTLS records are decoded, and the client's `ClientHello` (version, cipher suites, extensions) is shown in full.
 - When the client speaks DTLS, it **completes the handshake** with a fresh self-signed certificate. The launcher's patch #1 makes the client accept it. After that it logs the client's messages **decrypted**.
@@ -41,8 +42,8 @@ quintessence-server.exe -listen 0.0.0.0:6000   address and port, UDP and TCP
                         -captures captures      folder for the capture files
                         -cert rsa|ecdsa         certificate key for the DTLS handshake (default rsa)
                         -no-dtls                only record, never answer the handshake
-                        -reply probe2|probe|empty|unimplemented  how to answer gRPC calls (default probe2:
-                                                GetLoginInfo gets probe 2, the rest an empty message)
+                        -reply gateway|probe3|probe2|probe|empty|unimplemented
+                                                how to answer gRPC calls (default gateway)
 ```
 
 If the server can't start, the reason is in the `.log` and stays on screen until you press Enter. "Is another server already running on this port?" means an older server window is still open: close it. A warning about **no UDP** is harmless: some Windows setups (network filters from antivirus or VPN software) refuse a UDP socket option Go sets, and the server carries on with TCP, which is what the gateway uses. If the server ever dies, the reason is in `session-<time>.crash.txt`.

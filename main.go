@@ -35,13 +35,13 @@ func main() {
 	dir := flag.String("captures", "captures", "folder for the capture files")
 	noDTLS := flag.Bool("no-dtls", false, "only record the client's packets, never answer the DTLS handshake")
 	certType := flag.String("cert", "rsa", "certificate key for the DTLS handshake: rsa or ecdsa")
-	reply := flag.String("reply", "probe3", "how to answer gRPC calls: probe3, probe2 or probe (GetLoginInfo gets a probe message, the rest an empty one), empty, or unimplemented")
+	reply := flag.String("reply", "gateway", "how to answer gRPC calls: gateway (real login-flow answers), probe3, probe2 or probe (GetLoginInfo gets a probe message, the rest an empty one), empty, or unimplemented")
 	flag.Parse()
 
 	switch *reply {
-	case "probe3", "probe2", "probe", "empty", "unimplemented":
+	case "gateway", "probe3", "probe2", "probe", "empty", "unimplemented":
 	default:
-		fmt.Fprintln(os.Stderr, "error: -reply must be probe3, probe2, probe, empty or unimplemented")
+		fmt.Fprintln(os.Stderr, "error: -reply must be gateway, probe3, probe2, probe, empty or unimplemented")
 		os.Exit(2)
 	}
 	if err := run(*listen, *dir, !*noDTLS, *certType, *reply); err != nil {
@@ -103,6 +103,13 @@ func run(listen, dir string, dtlsOn bool, certType string, reply string) error {
 	}
 	defer tcp.Close()
 	tcp.grpc.reply = reply
+	if reply == "gateway" {
+		gw, err := NewGateway(filepath.Join(dir, "..", "characters.json"))
+		if err != nil {
+			return fail(fmt.Errorf("characters: %w", err))
+		}
+		tcp.grpc.gw = gw
+	}
 	go tcp.Serve()
 
 	// UDP is optional: the gateway is TCP. Some Windows setups (network filter
@@ -125,6 +132,7 @@ func run(listen, dir string, dtlsOn bool, certType string, reply string) error {
 	answer := map[string]string{
 		"probe":         "GetLoginInfo gets the probe reply, other gRPC calls an empty one",
 		"probe2":        "GetLoginInfo gets probe 2 (one id everywhere), other gRPC calls an empty one",
+		"gateway":       "the login gateway answers for real (world \"Quintessence\", characters in characters.json)",
 		"probe3":        "GetLoginInfo gets probe 3 (which character field is world_id), other gRPC calls an empty one",
 		"empty":         "gRPC calls get an empty reply",
 		"unimplemented": "gRPC calls get Unimplemented",

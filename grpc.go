@@ -46,7 +46,10 @@ type GRPCServer struct {
 	//   "probe"          GetLoginInfo gets the probe message (probe.go), every
 	//                    other call an empty message
 	//   "probe2", "probe3"  the same with probe 2 or 3
+	//   "gateway"        real answers for the login flow (gateway.go), an
+	//                    empty message for every other call
 	reply string
+	gw    *Gateway
 }
 
 func NewGRPCServer(cap *Capture, local net.Addr) *GRPCServer {
@@ -97,11 +100,31 @@ func (g *GRPCServer) handle(_ any, stream grpc.ServerStream) (err error) {
 		fmt.Fprintf(&b, "    deadline in %s\n", time.Until(dl).Round(time.Millisecond))
 	}
 	g.cap.Notef("%s", strings.TrimRight(b.String(), "\n"))
+	// the address the client dialed, which the login token sends it back to
+	endpoint := ""
+	if md, ok := metadata.FromIncomingContext(ctx); ok && len(md[":authority"]) > 0 {
+		endpoint = md[":authority"][0]
+	}
 
+	var msgs [][]byte
 	for i := 1; ; i++ {
 		var msg []byte
 		err := stream.RecvMsg(&msg)
 		if errors.Is(err, io.EOF) {
+			if g.reply == "gateway" && g.gw != nil {
+				if out, note, ok := g.gw.Handle(method, msgs, endpoint); ok {
+					if out == nil {
+						out = []byte{}
+					}
+					g.cap.Notef("gRPC END   %s  %s: the client sent %d message(s); GATEWAY answer (%d bytes): %s\n%s",
+						client, method, i-1, len(out), note, strings.TrimRight(describeMessage(client, method+" (reply)", 1, out), "\n"))
+					if err := stream.SendMsg(&out); err != nil {
+						g.cap.Notef("gRPC END   %s  %s: sending the reply failed: %v", client, method, err)
+						return err
+					}
+					return nil
+				}
+			}
 			if strings.HasPrefix(g.reply, "probe") && strings.HasSuffix(method, "/GetLoginInfo") {
 				out, note := ProbeReply(), "In the game, a text like @3@2@_@_ means: top-level field 3, then field 2 (fields 10-20 are a-k)."
 				switch g.reply {
@@ -118,7 +141,7 @@ func (g *GRPCServer) handle(_ any, stream grpc.ServerStream) (err error) {
 				}
 				return nil
 			}
-			if g.reply == "empty" || strings.HasPrefix(g.reply, "probe") {
+			if g.reply == "empty" || g.reply == "gateway" || strings.HasPrefix(g.reply, "probe") {
 				g.cap.Notef("gRPC END   %s  %s: the client sent %d message(s); answering with an EMPTY message and OK", client, method, i-1)
 				empty := []byte{}
 				if err := stream.SendMsg(&empty); err != nil {
@@ -135,6 +158,7 @@ func (g *GRPCServer) handle(_ any, stream grpc.ServerStream) (err error) {
 			return err
 		}
 		g.cap.Notef("%s", describeMessage(client, method, i, msg))
+		msgs = append(msgs, msg)
 	}
 }
 

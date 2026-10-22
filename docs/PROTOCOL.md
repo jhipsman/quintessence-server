@@ -64,3 +64,5 @@ String fields known by name (numbers unknown unless noted):
 
 1. 2026-10-22, stub v1: TCP + HTTP/2 preface; the client gives up after 20 s with no HTTP/2 answer.
 2. 2026-10-22, stub v3: `GetLoginInfo` as above; answered `Unimplemented`, the client retries every 2 s.
+3. 2026-10-22, stub v4 (`-reply empty`): the client accepts an empty `GetLoginInfoResult` (no error, no retry loop) but makes no further call; it asks `GetLoginInfo` again later (6 s, then 36 s). An empty result most likely reads as "no worlds, no characters".
+4. Next: `-reply probe` answers `GetLoginInfo` with a message that fills fields 1-20, each with fields 1-15 holding labels of their position (`probe.go`), to see which fields the game shows as worlds and characters.

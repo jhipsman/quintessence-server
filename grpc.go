@@ -38,11 +38,14 @@ type GRPCServer struct {
 	ln  *chanListener
 	cap *Capture
 
-	// replyEmpty answers each call that the client has finished sending with
-	// one empty message and OK instead of Unimplemented. An empty message is
-	// valid for any message type (every field at its default), so the client
-	// takes it as a success and shows us what it does next.
-	replyEmpty bool
+	// reply is how a call that the client has finished sending is answered:
+	//   "unimplemented"  status Unimplemented
+	//   "empty"          one empty message and OK: valid for any message type
+	//                    (every field at its default), so the client takes it
+	//                    as a success and shows us what it does next
+	//   "probe"          GetLoginInfo gets the probe message (probe.go), every
+	//                    other call an empty message
+	reply string
 }
 
 func NewGRPCServer(cap *Capture, local net.Addr) *GRPCServer {
@@ -98,7 +101,17 @@ func (g *GRPCServer) handle(_ any, stream grpc.ServerStream) (err error) {
 		var msg []byte
 		err := stream.RecvMsg(&msg)
 		if errors.Is(err, io.EOF) {
-			if g.replyEmpty {
+			if g.reply == "probe" && strings.HasSuffix(method, "/GetLoginInfo") {
+				out := ProbeReply()
+				g.cap.Notef("gRPC END   %s  %s: the client sent %d message(s); answering with the PROBE message (%d bytes) and OK.\n"+
+					"    In the game, a text like @3@2@_@_ means: top-level field 3, then field 2 (fields 10-20 are a-k).", client, method, i-1, len(out))
+				if err := stream.SendMsg(&out); err != nil {
+					g.cap.Notef("gRPC END   %s  %s: sending the reply failed: %v", client, method, err)
+					return err
+				}
+				return nil
+			}
+			if g.reply == "empty" || g.reply == "probe" {
 				g.cap.Notef("gRPC END   %s  %s: the client sent %d message(s); answering with an EMPTY message and OK", client, method, i-1)
 				empty := []byte{}
 				if err := stream.SendMsg(&empty); err != nil {

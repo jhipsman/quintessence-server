@@ -96,7 +96,7 @@ func TestGRPCCompressedCallsAreLogged(t *testing.T) {
 
 func TestGRPCEmptyReply(t *testing.T) {
 	srv, base := startTCP(t)
-	srv.grpc.replyEmpty = true
+	srv.grpc.reply = "empty"
 	conn := dial(t, srv)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -108,6 +108,26 @@ func TestGRPCEmptyReply(t *testing.T) {
 		t.Fatalf("reply = % x, want empty", resp)
 	}
 	waitFor(t, base, "answering with an EMPTY message and OK")
+}
+
+func TestGRPCProbeReply(t *testing.T) {
+	srv, base := startTCP(t)
+	srv.grpc.reply = "probe"
+	conn := dial(t, srv)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, resp := loginMsg, []byte(nil)
+	if err := conn.Invoke(ctx, "/Javelin.RPC.StubbedGatewayService/GetLoginInfo", &req, &resp); err != nil {
+		t.Fatal(err)
+	}
+	if string(resp) != string(ProbeReply()) {
+		t.Fatalf("GetLoginInfo did not get the probe")
+	}
+	// any other call gets an empty message
+	if err := conn.Invoke(ctx, "/Javelin.RPC.StubbedGatewayService/ListWorlds", &req, &resp); err != nil || len(resp) != 0 {
+		t.Fatalf("ListWorlds: % x %v", resp, err)
+	}
+	waitFor(t, base, "answering with the PROBE message")
 }
 
 func TestGRPCStreamLogsEveryMessage(t *testing.T) {

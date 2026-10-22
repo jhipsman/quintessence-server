@@ -35,9 +35,14 @@ func main() {
 	dir := flag.String("captures", "captures", "folder for the capture files")
 	noDTLS := flag.Bool("no-dtls", false, "only record the client's packets, never answer the DTLS handshake")
 	certType := flag.String("cert", "rsa", "certificate key for the DTLS handshake: rsa or ecdsa")
+	reply := flag.String("reply", "empty", "how to answer gRPC calls: empty (an empty message and OK) or unimplemented")
 	flag.Parse()
 
-	if err := run(*listen, *dir, !*noDTLS, *certType); err != nil {
+	if *reply != "empty" && *reply != "unimplemented" {
+		fmt.Fprintln(os.Stderr, "error: -reply must be empty or unimplemented")
+		os.Exit(2)
+	}
+	if err := run(*listen, *dir, !*noDTLS, *certType, *reply == "empty"); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		// keep the window open when the server was started by double-click
 		fmt.Fprintln(os.Stderr, "Press Enter to close.")
@@ -46,7 +51,7 @@ func main() {
 	}
 }
 
-func run(listen, dir string, dtlsOn bool, certType string) error {
+func run(listen, dir string, dtlsOn bool, certType string, replyEmpty bool) error {
 	stamp := time.Now().Format("2006-01-02_15-04-05")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -95,6 +100,7 @@ func run(listen, dir string, dtlsOn bool, certType string) error {
 		return fail(fmt.Errorf("TCP %s: %w (is another server already running on this port?)", listen, err))
 	}
 	defer tcp.Close()
+	tcp.grpc.replyEmpty = replyEmpty
 	go tcp.Serve()
 
 	// UDP is optional: the gateway is TCP. Some Windows setups (network filter
@@ -114,7 +120,11 @@ func run(listen, dir string, dtlsOn bool, certType string) error {
 	if !dtlsOn {
 		mode = "record only"
 	}
-	cap.Notef("Quintessence stub server listening on %s (%s), %s", listen, transports, mode)
+	answer := "gRPC calls get an empty reply"
+	if !replyEmpty {
+		answer = "gRPC calls get Unimplemented"
+	}
+	cap.Notef("Quintessence stub server listening on %s (%s), %s, %s", listen, transports, mode, answer)
 	cap.Notef("Writing %s.log, %s.pcap and %s.keys", base, base, base)
 	cap.Notef("Point the launcher's Server setting at this PC and this port, press Play, then Ctrl+C here when the game gives up.")
 

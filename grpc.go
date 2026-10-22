@@ -37,6 +37,12 @@ type GRPCServer struct {
 	srv *grpc.Server
 	ln  *chanListener
 	cap *Capture
+
+	// replyEmpty answers each call that the client has finished sending with
+	// one empty message and OK instead of Unimplemented. An empty message is
+	// valid for any message type (every field at its default), so the client
+	// takes it as a success and shows us what it does next.
+	replyEmpty bool
 }
 
 func NewGRPCServer(cap *Capture, local net.Addr) *GRPCServer {
@@ -92,6 +98,15 @@ func (g *GRPCServer) handle(_ any, stream grpc.ServerStream) (err error) {
 		var msg []byte
 		err := stream.RecvMsg(&msg)
 		if errors.Is(err, io.EOF) {
+			if g.replyEmpty {
+				g.cap.Notef("gRPC END   %s  %s: the client sent %d message(s); answering with an EMPTY message and OK", client, method, i-1)
+				empty := []byte{}
+				if err := stream.SendMsg(&empty); err != nil {
+					g.cap.Notef("gRPC END   %s  %s: sending the reply failed: %v", client, method, err)
+					return err
+				}
+				return nil
+			}
 			g.cap.Notef("gRPC END   %s  %s: the client sent %d message(s); answering Unimplemented", client, method, i-1)
 			return status.Errorf(codes.Unimplemented, "quintessence stub: %s is not implemented yet", method)
 		}

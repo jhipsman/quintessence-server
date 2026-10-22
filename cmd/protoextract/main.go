@@ -15,6 +15,8 @@
 //	protos\<path>.proto  one file per schema found
 //	protos\ALL.txt       all of them in one text file, to share
 //	protos\descriptors.pb the raw FileDescriptorSet
+//	protos\NAMES.txt     gRPC method paths and message type names, which
+//	                     survive even when the schemas don't (lite runtime)
 package main
 
 import (
@@ -109,6 +111,13 @@ func run(path, outDir string, all bool) error {
 	if err != nil {
 		return err
 	}
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		return err
+	}
+	if err := writeNames(FindNames(data), filepath.Join(outDir, "NAMES.txt")); err != nil {
+		return err
+	}
+
 	files := Extract(data)
 	if !all {
 		kept := files[:0]
@@ -120,7 +129,10 @@ func run(path, outDir string, all bool) error {
 		files = kept
 	}
 	if len(files) == 0 {
-		return fmt.Errorf("no .proto schemas found in %s (the program may use the protobuf lite runtime, which carries none)", path)
+		fmt.Println("\nNo .proto schemas found (the program may use the protobuf lite runtime, which carries none).")
+		abs, _ := filepath.Abs(filepath.Join(outDir, "NAMES.txt"))
+		fmt.Printf("Wrote %s\n", abs)
+		return nil
 	}
 
 	var allText strings.Builder
@@ -162,8 +174,29 @@ func run(path, outDir string, all bool) error {
 		fmt.Println(l)
 	}
 	abs, _ := filepath.Abs(filepath.Join(outDir, "ALL.txt"))
-	fmt.Printf("\nWrote %s\n", abs)
+	names, _ := filepath.Abs(filepath.Join(outDir, "NAMES.txt"))
+	fmt.Printf("\nWrote %s\nand %s\n", abs, names)
 	return nil
+}
+
+// writeNames writes the protocol names found in the binary and prints the
+// method count.
+func writeNames(n Names, path string) error {
+	var b strings.Builder
+	fmt.Fprintf(&b, "# gRPC methods (%d)\n", len(n.Methods))
+	for _, m := range n.Methods {
+		b.WriteString(m + "\n")
+	}
+	fmt.Fprintf(&b, "\n# Javelin type names (%d)\n", len(n.Types))
+	for _, t := range n.Types {
+		b.WriteString(t + "\n")
+	}
+	fmt.Fprintf(&b, "\n# Other strings mentioning the gateway or login (%d)\n", len(n.Related))
+	for _, r := range n.Related {
+		b.WriteString(r + "\n")
+	}
+	fmt.Printf("Found %d gRPC methods and %d Javelin type names.\n", len(n.Methods), len(n.Types))
+	return os.WriteFile(path, []byte(b.String()), 0o644)
 }
 
 // isLibrary is a schema that comes with protobuf or gRPC, not the game.

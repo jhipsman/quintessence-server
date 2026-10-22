@@ -94,6 +94,22 @@ func TestGRPCCompressedCallsAreLogged(t *testing.T) {
 	}
 }
 
+func TestGRPCEmptyReply(t *testing.T) {
+	srv, base := startTCP(t)
+	srv.grpc.replyEmpty = true
+	conn := dial(t, srv)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, resp := loginMsg, []byte("not replaced")
+	if err := conn.Invoke(ctx, "/Javelin.RPC.StubbedGatewayService/GetLoginInfo", &req, &resp); err != nil {
+		t.Fatalf("the call should succeed: %v", err)
+	}
+	if len(resp) != 0 {
+		t.Fatalf("reply = % x, want empty", resp)
+	}
+	waitFor(t, base, "answering with an EMPTY message and OK")
+}
+
 func TestGRPCStreamLogsEveryMessage(t *testing.T) {
 	srv, base := startTCP(t)
 	conn := dial(t, srv)

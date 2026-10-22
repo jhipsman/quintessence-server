@@ -191,7 +191,7 @@ func writeNames(n Names, path string) error {
 	for _, t := range n.Types {
 		b.WriteString(t + "\n")
 	}
-	fmt.Fprintf(&b, "\n# Other strings mentioning the gateway or login (%d)\n", len(n.Related))
+	fmt.Fprintf(&b, "\n# Other strings mentioning the gateway, login, worlds, hosts, stubs, personas or characters (%d)\n", len(n.Related))
 	for _, r := range n.Related {
 		b.WriteString(r + "\n")
 	}

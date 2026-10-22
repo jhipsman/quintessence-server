@@ -51,6 +51,59 @@ func ProbeReply2() []byte {
 	})
 }
 
+// Probe 3 (after probe 2 moved the character to a world the menu doesn't
+// list): which character field is world_id? Field 3 now holds one character
+// per field j (j != 4, the name): only field j is @W@W@W@W, the id of the
+// hidden worlds; every other field is a unique label. The character whose
+// field j is world_id moves to a hidden world and drops out of the list. One
+// more character has every field empty, to see whether "Local Host" is the
+// world with an empty id. The other top-level fields are as in probe 2.
+func ProbeReply3() []byte {
+	var out []byte
+	for top := 1; top <= probeTopFields; top++ {
+		if top != 3 {
+			out = protowire.AppendTag(out, protowire.Number(top), protowire.BytesType)
+			out = protowire.AppendBytes(out, probeInner(func(int) []byte { return probeSame }))
+			continue
+		}
+		for j := 1; j <= probeInnerFields; j++ {
+			if j == 4 {
+				continue
+			}
+			char := probeInner(func(f int) []byte {
+				switch f {
+				case 4:
+					return []byte{'@', 'C', '@', fieldChar(j), '@', '_', '@', '_'}
+				case j:
+					return probeSame
+				}
+				return probeLabel(j, f)
+			})
+			out = protowire.AppendTag(out, 3, protowire.BytesType)
+			out = protowire.AppendBytes(out, char)
+		}
+		empty := probeInner(func(f int) []byte {
+			if f == 4 {
+				return []byte("@E@m@p@t")
+			}
+			return []byte{}
+		})
+		out = protowire.AppendTag(out, 3, protowire.BytesType)
+		out = protowire.AppendBytes(out, empty)
+	}
+	return out
+}
+
+// probeInner is one message with fields 1-15 set to value(field).
+func probeInner(value func(f int) []byte) []byte {
+	var inner []byte
+	for f := 1; f <= probeInnerFields; f++ {
+		inner = protowire.AppendTag(inner, protowire.Number(f), protowire.BytesType)
+		inner = protowire.AppendBytes(inner, value(f))
+	}
+	return inner
+}
+
 // probeMessage fills fields 1-20, each with fields 1-15 holding label(top, inner).
 // Every label must be 8 ASCII bytes that also parse as a message.
 func probeMessage(label func(top, inner int) []byte) []byte {

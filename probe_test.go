@@ -135,8 +135,31 @@ func TestProbe2MatchesIDs(t *testing.T) {
 	}
 }
 
+func TestProbe3Characters(t *testing.T) {
+	md := guessResult(t)
+	msg := dynamicpb.NewMessage(md)
+	// the guessed schema has the characters in field 5; probe 3 targets field 3,
+	// where the guess has worlds: it must still parse
+	if err := proto.Unmarshal(ProbeReply3(), msg); err != nil {
+		t.Fatalf("probe 3 does not parse: %v", err)
+	}
+	worlds := msg.Get(md.Fields().ByName("worlds")).List()
+	if worlds.Len() != 15 { // 14 probes + the empty one
+		t.Fatalf("%d entries in field 3, want 15", worlds.Len())
+	}
+	wf := md.Fields().ByName("worlds").Message().Fields()
+	// entry for j=2: field 2 is the shared id, field 1 a label, field 4 the name
+	e := worlds.Get(1).Message()
+	if e.Get(wf.ByName("name")).String() != "@W@W@W@W" || e.Get(wf.ByName("id")).String() != "@2@1@_@_" {
+		t.Errorf("entry j=2: id %q name %q", e.Get(wf.ByName("id")).String(), e.Get(wf.ByName("name")).String())
+	}
+	if last := worlds.Get(14).Message(); last.Get(wf.ByName("id")).String() != "" {
+		t.Errorf("the empty character has id %q", last.Get(wf.ByName("id")).String())
+	}
+}
+
 func TestProbeIsASCIIBelowTheTop(t *testing.T) {
-	for _, b := range [][]byte{ProbeReply(), ProbeReply2()} {
+	for _, b := range [][]byte{ProbeReply(), ProbeReply2(), ProbeReply3()} {
 		checkASCIIBelowTop(t, b)
 	}
 }

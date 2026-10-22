@@ -127,7 +127,9 @@ func TestFindNames(t *testing.T) {
 		"/grpc.health.v1.Health/Check\x00" +
 		"Calling /Javelin.RPC.WorldService/Join failed\x00" +
 		"/usr/lib/x86_64/libc.so\x00" +
-		"GatewayLoginFailed: %s\x00")
+		"GatewayLoginFailed: %s\x00" +
+		"Local Host\x00" +
+		".?AVWorldThing@@\x00")
 	n := FindNames(bin)
 	wantM := []string{"/Javelin.RPC.StubbedGatewayService/GetLoginInfo", "/Javelin.RPC.WorldService/Join", "/grpc.health.v1.Health/Check"}
 	if strings.Join(n.Methods, ",") != strings.Join(wantM, ",") {
@@ -136,7 +138,7 @@ func TestFindNames(t *testing.T) {
 	if strings.Join(n.Types, ",") != "Javelin.RPC.GetLoginInfoResponse" {
 		t.Errorf("types = %v (service names must not count as types)", n.Types)
 	}
-	if !strings.Contains(strings.Join(n.Related, "\n"), "GatewayLoginFailed: %s") {
+	if rel := strings.Join(n.Related, "\n"); !strings.Contains(rel, "GatewayLoginFailed: %s") || !strings.Contains(rel, "Local Host") || strings.Contains(rel, ".?AV") {
 		t.Errorf("related = %v", n.Related)
 	}
 }

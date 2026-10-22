@@ -13,7 +13,7 @@ import (
 type Names struct {
 	Methods []string // "/Package.Service/Method"
 	Types   []string // "Javelin.RPC.SomeMessage"
-	Related []string // other strings that mention the gateway or login
+	Related []string // other strings that mention the gateway, login, worlds, hosts or the stubbed mode
 }
 
 var (
@@ -21,7 +21,11 @@ var (
 	typeRE   = regexp.MustCompile(`\bJavelin(?:\.[A-Za-z_][A-Za-z0-9_]*)+`)
 )
 
-const maxRelated = 3000
+const maxRelated = 30000
+
+// relatedWords pick the strings worth reading: the login flow, worlds (their
+// status, type and set), the stubbed mode and its "Local Host" world.
+var relatedWords = []string{"gateway", "login", "world", "local host", "localhost", "stub", "persona", "character"}
 
 // FindNames scans the printable ASCII strings of a binary for protocol names.
 func FindNames(data []byte) Names {
@@ -43,7 +47,7 @@ func FindNames(data []byte) Names {
 			types[strings.TrimRight(t, ".")] = true
 		}
 		low := strings.ToLower(s)
-		if len(related) < maxRelated && (strings.Contains(low, "gateway") || strings.Contains(low, "login")) {
+		if len(related) < maxRelated && containsAny(low, relatedWords) && !strings.HasPrefix(s, ".?A") {
 			if len(s) > 200 {
 				s = s[:200] + "…"
 			}
@@ -68,6 +72,15 @@ func FindNames(data []byte) Names {
 		delete(types, svc)
 	}
 	return Names{Methods: sorted(methods), Types: sorted(types), Related: sorted(related)}
+}
+
+func containsAny(s string, words []string) bool {
+	for _, w := range words {
+		if strings.Contains(s, w) {
+			return true
+		}
+	}
+	return false
 }
 
 func sorted(m map[string]bool) []string {

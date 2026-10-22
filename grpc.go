@@ -45,7 +45,7 @@ type GRPCServer struct {
 	//                    as a success and shows us what it does next
 	//   "probe"          GetLoginInfo gets the probe message (probe.go), every
 	//                    other call an empty message
-	//   "probe2"         the same with probe 2
+	//   "probe2", "probe3"  the same with probe 2 or 3
 	reply string
 }
 
@@ -102,10 +102,13 @@ func (g *GRPCServer) handle(_ any, stream grpc.ServerStream) (err error) {
 		var msg []byte
 		err := stream.RecvMsg(&msg)
 		if errors.Is(err, io.EOF) {
-			if (g.reply == "probe" || g.reply == "probe2") && strings.HasSuffix(method, "/GetLoginInfo") {
+			if strings.HasPrefix(g.reply, "probe") && strings.HasSuffix(method, "/GetLoginInfo") {
 				out, note := ProbeReply(), "In the game, a text like @3@2@_@_ means: top-level field 3, then field 2 (fields 10-20 are a-k)."
-				if g.reply == "probe2" {
+				switch g.reply {
+				case "probe2":
 					out, note = ProbeReply2(), "Every text is @W@W@W@W except character names (field 3 -> 4), which are @N@a@m@e."
+				case "probe3":
+					out, note = ProbeReply3(), "14 characters @C@j: only field j is @W@W@W@W; the one missing from the list has world_id in field j. @E@m@p@t has every field empty."
 				}
 				g.cap.Notef("gRPC END   %s  %s: the client sent %d message(s); answering with the %s message (%d bytes) and OK.\n    %s",
 					client, method, i-1, strings.ToUpper(g.reply), len(out), note)

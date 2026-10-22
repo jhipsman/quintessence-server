@@ -40,7 +40,8 @@ String fields known by name (numbers unknown unless noted):
 |---|---|
 | `GetLoginInfoRequest` | `channel_id` |
 | `PersonaId` | `id` (field 1, captured) |
-| `GetLoginInfoResult` | none: it only holds non-string fields (probably lists of worlds and characters) |
+| `GetLoginInfoResult` | none. **Field 3: repeated character** (capture 4). |
+| character in `GetLoginInfoResult` field 3 | **field 4: name** (capture 4); probably `CharacterMetadata` |
 | `WorldPublicMetadata` | `id`, `name`, `publicName`, `status`, `version`, `worldSet`, `worldType`, `transferToRegion` |
 | `WorldMetrics` | `worldPopulationStatus` |
 | `RecommendedWorld` | `recommendationType` |
@@ -65,4 +66,5 @@ String fields known by name (numbers unknown unless noted):
 1. 2026-10-22, stub v1: TCP + HTTP/2 preface; the client gives up after 20 s with no HTTP/2 answer.
 2. 2026-10-22, stub v3: `GetLoginInfo` as above; answered `Unimplemented`, the client retries every 2 s.
 3. 2026-10-22, stub v4 (`-reply empty`): the client accepts an empty `GetLoginInfoResult` (no error, no retry loop) but makes no further call; it asks `GetLoginInfo` again later (6 s, then 36 s). An empty result most likely reads as "no worlds, no characters".
-4. Next: `-reply probe` answers `GetLoginInfo` with a message that fills fields 1-20, each with fields 1-15 holding labels of their position (`probe.go`), to see which fields the game shows as worlds and characters.
+4. 2026-10-22, stub v5 (`-reply probe`): **character select screen.** One character named `@3@4@_@_`, marked "World Unavailable"; world dropdown "Local Host 1/0"; Play greyed out. So `GetLoginInfoResult` field 3 = repeated characters, character field 4 = name. Probe 1 answers `GetLoginInfo` with a message that fills fields 1-20, each with fields 1-15 holding labels of their position (`probe.go`), to see which fields the game shows as worlds and characters.
+5. Next: `-reply probe2`, every text `@W@W@W@W` (so any world id matches any character world_id) except the character name `@N@a@m@e`.

@@ -35,11 +35,11 @@ func main() {
 	dir := flag.String("captures", "captures", "folder for the capture files")
 	noDTLS := flag.Bool("no-dtls", false, "only record the client's packets, never answer the DTLS handshake")
 	certType := flag.String("cert", "rsa", "certificate key for the DTLS handshake: rsa or ecdsa")
-	reply := flag.String("reply", "probe", "how to answer gRPC calls: probe (GetLoginInfo gets the probe message, the rest an empty one), empty, or unimplemented")
+	reply := flag.String("reply", "probe2", "how to answer gRPC calls: probe2 or probe (GetLoginInfo gets a probe message, the rest an empty one), empty, or unimplemented")
 	flag.Parse()
 
-	if *reply != "probe" && *reply != "empty" && *reply != "unimplemented" {
-		fmt.Fprintln(os.Stderr, "error: -reply must be probe, empty or unimplemented")
+	if *reply != "probe2" && *reply != "probe" && *reply != "empty" && *reply != "unimplemented" {
+		fmt.Fprintln(os.Stderr, "error: -reply must be probe2, probe, empty or unimplemented")
 		os.Exit(2)
 	}
 	if err := run(*listen, *dir, !*noDTLS, *certType, *reply); err != nil {
@@ -122,6 +122,7 @@ func run(listen, dir string, dtlsOn bool, certType string, reply string) error {
 	}
 	answer := map[string]string{
 		"probe":         "GetLoginInfo gets the probe reply, other gRPC calls an empty one",
+		"probe2":        "GetLoginInfo gets probe 2 (one id everywhere), other gRPC calls an empty one",
 		"empty":         "gRPC calls get an empty reply",
 		"unimplemented": "gRPC calls get Unimplemented",
 	}[reply]

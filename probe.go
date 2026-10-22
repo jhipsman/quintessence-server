@@ -29,14 +29,37 @@ const (
 	probeInnerFields = 15 // one-byte tags: keeps the inner messages pure ASCII
 )
 
-// ProbeReply builds the probe message.
-func ProbeReply() []byte {
+// ProbeReply builds the probe message: every text value labels its position.
+func ProbeReply() []byte { return probeMessage(probeLabel) }
+
+// Probe 2 (after probe 1 showed GetLoginInfoResult field 3 is the character
+// list and a character's field 4 its name): every text value is the same
+// label, so whichever fields hold a world's id and a character's world_id,
+// they match. Only the character's name differs, to tell the runs apart.
+var (
+	probeSame     = []byte("@W@W@W@W")
+	probeCharName = []byte("@N@a@m@e")
+)
+
+// ProbeReply2 builds probe 2.
+func ProbeReply2() []byte {
+	return probeMessage(func(top, inner int) []byte {
+		if top == 3 && inner == 4 {
+			return probeCharName
+		}
+		return probeSame
+	})
+}
+
+// probeMessage fills fields 1-20, each with fields 1-15 holding label(top, inner).
+// Every label must be 8 ASCII bytes that also parse as a message.
+func probeMessage(label func(top, inner int) []byte) []byte {
 	var out []byte
 	for top := 1; top <= probeTopFields; top++ {
 		var inner []byte
 		for f := 1; f <= probeInnerFields; f++ {
 			inner = protowire.AppendTag(inner, protowire.Number(f), protowire.BytesType)
-			inner = protowire.AppendBytes(inner, probeLabel(top, f))
+			inner = protowire.AppendBytes(inner, label(top, f))
 		}
 		out = protowire.AppendTag(out, protowire.Number(top), protowire.BytesType)
 		out = protowire.AppendBytes(out, inner)

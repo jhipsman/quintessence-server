@@ -119,8 +119,30 @@ func TestProbeParsesAndLabelsEveryTextField(t *testing.T) {
 	}
 }
 
+func TestProbe2MatchesIDs(t *testing.T) {
+	md := guessResult(t)
+	msg := dynamicpb.NewMessage(md)
+	if err := proto.Unmarshal(ProbeReply2(), msg); err != nil {
+		t.Fatalf("probe 2 does not parse: %v", err)
+	}
+	world := msg.Get(md.Fields().ByName("worlds")).List().Get(0).Message()
+	wf := md.Fields().ByName("worlds").Message().Fields()
+	if got := world.Get(wf.ByName("id")).String(); got != "@W@W@W@W" {
+		t.Errorf("world id = %q", got)
+	}
+	if got := world.Get(wf.ByName("name")).String(); got != "@W@W@W@W" {
+		t.Errorf("world name = %q", got)
+	}
+}
+
 func TestProbeIsASCIIBelowTheTop(t *testing.T) {
-	b := ProbeReply()
+	for _, b := range [][]byte{ProbeReply(), ProbeReply2()} {
+		checkASCIIBelowTop(t, b)
+	}
+}
+
+func checkASCIIBelowTop(t *testing.T, b []byte) {
+	t.Helper()
 	for len(b) > 0 {
 		_, typ, n := protowire.ConsumeTag(b)
 		if n < 0 || typ != protowire.BytesType {

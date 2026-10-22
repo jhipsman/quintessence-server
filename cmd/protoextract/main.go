@@ -8,7 +8,9 @@
 //
 //	protoextract.exe "F:\SteamLibrary\steamapps\common\New World\Bin64\NewWorld.exe"
 //
-// writes, next to the tool (or in -out):
+// Started with no file (a double-click), it takes NewWorld.exe from the New
+// World folder saved in the Quintessence launcher's settings, or asks for it.
+// It writes, next to the tool (or in -out):
 //
 //	protos\<path>.proto  one file per schema found
 //	protos\ALL.txt       all of them in one text file, to share
@@ -17,6 +19,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -29,24 +32,69 @@ import (
 )
 
 func main() {
-	out := flag.String("out", "protos", "folder for the .proto files")
+	out := flag.String("out", "", "folder for the .proto files (default: protos, next to this tool)")
 	all := flag.Bool("all", false, "also write google/protobuf and other library schemas")
 	flag.Usage = func() {
 		fmt.Fprintln(os.Stderr, "usage: protoextract [-out protos] [-all] <program.exe>")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
-	if flag.NArg() != 1 {
+	if flag.NArg() > 1 {
 		flag.Usage()
 		pause()
 		os.Exit(2)
 	}
-	if err := run(flag.Arg(0), *out, *all); err != nil {
+	path := flag.Arg(0)
+	if path == "" {
+		path = askForGame()
+	}
+	if *out == "" {
+		*out = "protos"
+		if exe, err := os.Executable(); err == nil {
+			*out = filepath.Join(filepath.Dir(exe), "protos")
+		}
+	}
+	if err := run(path, *out, *all); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		pause()
 		os.Exit(1)
 	}
 	pause()
+}
+
+// askForGame finds NewWorld.exe through the launcher's settings, or asks for
+// it: dragging a file into a console window types its path.
+func askForGame() string {
+	if dir := launcherGameDir(); dir != "" {
+		for _, p := range []string{filepath.Join(dir, "Bin64", "NewWorld.exe"), filepath.Join(dir, "NewWorld.exe")} {
+			if st, err := os.Stat(p); err == nil && !st.IsDir() {
+				fmt.Printf("Using the New World folder from the launcher's settings.\n")
+				return p
+			}
+		}
+	}
+	fmt.Println("Drag NewWorld.exe (in your New World folder, under Bin64) into this window, then press Enter:")
+	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+	return strings.Trim(strings.TrimSpace(line), `"'&`+" ")
+}
+
+// launcherGameDir is the New World folder saved by the Quintessence launcher.
+func launcherGameDir() string {
+	base := os.Getenv("LOCALAPPDATA")
+	if base == "" {
+		return ""
+	}
+	raw, err := os.ReadFile(filepath.Join(base, "QuintessenceLauncher", "config.json"))
+	if err != nil {
+		return ""
+	}
+	var c struct {
+		GameDir string `json:"gameDir"`
+	}
+	if json.Unmarshal(raw, &c) != nil {
+		return ""
+	}
+	return c.GameDir
 }
 
 // pause keeps the window open when the tool was started by dropping a file on it.

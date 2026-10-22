@@ -63,7 +63,8 @@ func (g *GRPCServer) handle(_ any, stream grpc.ServerStream) (err error) {
 	method, _ := grpc.MethodFromServerStream(stream)
 	client := "?"
 	if p, ok := peer.FromContext(ctx); ok {
-		client = addrPort(p.Addr).String()
+		ap := addrPort(p.Addr)
+		client = netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port()).String()
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "gRPC CALL  %s  %s\n", client, method)

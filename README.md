@@ -6,6 +6,7 @@ The first step towards a server for the Quintessence launcher. It does **not** p
 
 - **The gateway is gRPC.** The game opens a **TCP** connection and speaks HTTP/2 in cleartext (h2c, no TLS). Its first settings frame carries setting `0xFE03`, which only Google's C++ gRPC library sends. (First capture, 2026-10-22.)
 - With no HTTP/2 answer, the client hangs up after 20 seconds and retries.
+- **The first call is `/Javelin.RPC.StubbedGatewayService/GetLoginInfo`** (user agent `grpc-c++/1.33.1`). Its request is `{1: {1: "<player name>"}, 2: "dev", 3: 1}`: the persona from the launcher's patch #4 and the `-ProductId dev` from its command line. Answered Unimplemented, the client asks again every 2 seconds. (Second capture, 2026-10-22.)
 
 ## What it does
 
@@ -45,6 +46,16 @@ If the server can't start, the reason is in the `.log` and stays on screen until
 
 If the log says the handshake failed, try `-cert ecdsa`. If nothing arrives at all, the client may be using a different port, or it never got as far as connecting. Check that the launcher's Server setting matches `-listen`.
 
+## protoextract: the game's own message definitions
+
+Programs built with the full C++ protobuf library carry their `.proto` schemas inside the `.exe`. `protoextract` finds them and writes them back out as `.proto` files. It only reads the file it's given.
+
+```
+quintessence-protoextract.exe "F:\SteamLibrary\steamapps\common\New World\Bin64\NewWorld.exe"
+```
+
+It writes a `protos` folder next to where it runs: one `.proto` per schema, `ALL.txt` with all of them in one file, and `descriptors.pb` (a FileDescriptorSet). Library schemas (`google/protobuf`, `grpc`) are skipped unless you pass `-all`.
+
 ## Reading the .pcap in Wireshark
 
 Open the `.pcap`. Then:
@@ -61,4 +72,5 @@ Go 1.26 or newer:
 ```
 go test ./...
 GOOS=windows GOARCH=amd64 go build -o quintessence-server.exe .
+GOOS=windows GOARCH=amd64 go build -o quintessence-protoextract.exe ./cmd/protoextract
 ```

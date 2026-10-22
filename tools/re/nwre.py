@@ -6,7 +6,7 @@ import struct
 import capstone
 import numpy as np
 
-EXE = "/tmp/claude-0/-home-user/23a7eb68-5ed4-5ff7-af52-ce82481c42a5/scratchpad/nw/NewWorld.exe"
+EXE = __import__("os").environ.get("NEWWORLD_EXE", "NewWorld.exe")  # path to the 1.400.6031.6004151 client
 BASE = 0x140000000
 # name: (rva, vsize, raw offset, raw size)
 SECTIONS = {

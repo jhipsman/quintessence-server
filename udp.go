@@ -105,11 +105,14 @@ func (s *UDPServer) Serve() {
 			continue
 		}
 		from = netip.AddrPortFrom(from.Addr().Unmap(), from.Port())
-		data := append([]byte(nil), buf[:n]...)
-		s.cap.Packet("UDP", from, s.local, true, data)
-		if s.dtls == nil {
-			continue
-		}
+		s.datagram(from, append([]byte(nil), buf[:n]...))
+	}
+}
+
+func (s *UDPServer) datagram(from netip.AddrPort, data []byte) {
+	defer s.cap.Recover("a UDP datagram")
+	s.cap.Packet("UDP", from, s.local, true, data)
+	if s.dtls != nil {
 		s.peer(from, data).deliver(data)
 	}
 }
@@ -141,6 +144,7 @@ func (s *UDPServer) forget(p *peerConn) {
 }
 
 func (s *UDPServer) serveDTLS(p *peerConn) {
+	defer s.cap.Recover("a DTLS connection")
 	defer p.Close()
 	conn, err := dtls.Server(p, net.UDPAddrFromAddrPort(p.addr), s.dtls.cfg)
 	if err != nil {

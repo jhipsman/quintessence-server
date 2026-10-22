@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"time"
 )
 
@@ -38,6 +39,9 @@ func main() {
 
 	if err := run(*listen, *dir, !*noDTLS, *certType); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
+		// keep the window open when the server was started by double-click
+		fmt.Fprintln(os.Stderr, "Press Enter to close.")
+		fmt.Scanln()
 		os.Exit(1)
 	}
 }
@@ -54,39 +58,65 @@ func run(listen, dir string, dtlsOn bool, certType string) error {
 	}
 	defer cap.Close()
 
+	// If the server dies anyway, Go writes the reason and the stack here.
+	crashPath := base + ".crash.txt"
+	if f, err := os.Create(crashPath); err == nil {
+		debug.SetCrashOutput(f, debug.CrashOptions{})
+		f.Close()
+		defer func() { // a clean stop leaves no empty crash file behind
+			debug.SetCrashOutput(nil, debug.CrashOptions{}) // release it (Windows can't delete open files)
+			if st, err := os.Stat(crashPath); err == nil && st.Size() == 0 {
+				os.Remove(crashPath)
+			}
+		}()
+	}
+
+	// From here on, errors go into the log as well as the console: a run that
+	// fails to start must not leave an empty log behind.
+	fail := func(err error) error {
+		cap.Notef("ERROR: %v", err)
+		return err
+	}
+
 	udpAddr, err := net.ResolveUDPAddr("udp", listen)
 	if err != nil {
-		return fmt.Errorf("listen address: %w", err)
+		return fail(fmt.Errorf("listen address: %w", err))
 	}
 	var tlsCfg *DTLSSetup
 	if dtlsOn {
 		tlsCfg, err = NewDTLSSetup(certType, cap.KeyLog())
 		if err != nil {
-			return err
+			return fail(err)
 		}
 	}
 
-	udp, err := ListenUDP(udpAddr, cap, tlsCfg)
-	if err != nil {
-		return fmt.Errorf("UDP %s: %w", listen, err)
-	}
-	defer udp.Close()
 	tcp, err := ListenTCP(listen, cap)
 	if err != nil {
-		return fmt.Errorf("TCP %s: %w", listen, err)
+		return fail(fmt.Errorf("TCP %s: %w (is another server already running on this port?)", listen, err))
 	}
 	defer tcp.Close()
+	go tcp.Serve()
+
+	// UDP is optional: the gateway is TCP. Some Windows setups (network filter
+	// drivers from antivirus or VPN software, and Wine) refuse a socket option
+	// Go sets on every UDP socket since Go 1.25, so carry on without it.
+	transports := "TCP only"
+	udp, err := ListenUDP(udpAddr, cap, tlsCfg)
+	if err != nil {
+		cap.Notef("WARNING: no UDP on %s (%v). Carrying on with TCP only, which is what the gateway uses.", listen, err)
+	} else {
+		defer udp.Close()
+		go udp.Serve()
+		transports = "UDP and TCP"
+	}
 
 	mode := "record + DTLS handshake (" + certType + " certificate)"
 	if !dtlsOn {
 		mode = "record only"
 	}
-	cap.Notef("Quintessence stub server listening on %s (UDP and TCP), %s", listen, mode)
+	cap.Notef("Quintessence stub server listening on %s (%s), %s", listen, transports, mode)
 	cap.Notef("Writing %s.log, %s.pcap and %s.keys", base, base, base)
 	cap.Notef("Point the launcher's Server setting at this PC and this port, press Play, then Ctrl+C here when the game gives up.")
-
-	go udp.Serve()
-	go tcp.Serve()
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)

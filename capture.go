@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -76,6 +78,14 @@ func (w lockedWriter) Write(p []byte) (int, error) {
 	w.c.mu.Lock()
 	defer w.c.mu.Unlock()
 	return w.c.keys.Write(p)
+}
+
+// Recover logs a panic in one connection's handler instead of letting it take
+// the whole server down. Use it as `defer cap.Recover("where")`.
+func (c *Capture) Recover(where string) {
+	if r := recover(); r != nil {
+		c.Notef("PANIC in %s (the server keeps running): %v\n%s", where, r, bytes.TrimSpace(debug.Stack()))
+	}
 }
 
 // Notef logs a line of text.

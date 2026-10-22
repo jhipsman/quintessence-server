@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bytes"
+	"compress/flate"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/netip"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -14,6 +17,8 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/encoding"
+	_ "google.golang.org/grpc/encoding/gzip" // the client may compress its messages
 	"google.golang.org/grpc/mem"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
@@ -47,7 +52,13 @@ func (g *GRPCServer) Serve()         { _ = g.srv.Serve(g.ln) }
 func (g *GRPCServer) Close()         { g.srv.Stop() }
 func (g *GRPCServer) Add(c net.Conn) { g.ln.push(c) }
 
-func (g *GRPCServer) handle(_ any, stream grpc.ServerStream) error {
+func (g *GRPCServer) handle(_ any, stream grpc.ServerStream) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			g.cap.Notef("PANIC in the gRPC handler (the server keeps running): %v\n%s", r, bytes.TrimSpace(debug.Stack()))
+			err = status.Error(codes.Internal, "quintessence stub: internal error")
+		}
+	}()
 	ctx := stream.Context()
 	method, _ := grpc.MethodFromServerStream(stream)
 	client := "?"
@@ -105,6 +116,19 @@ func describeMessage(client, method string, n int, msg []byte) string {
 	b.WriteString(indent(hex.Dump(msg)))
 	return strings.TrimRight(b.String(), "\n")
 }
+
+// deflate is the other compression C++ gRPC offers (grpc-go only ships gzip).
+type deflate struct{}
+
+func init() { encoding.RegisterCompressor(deflate{}) }
+
+func (deflate) Name() string { return "deflate" }
+
+func (deflate) Compress(w io.Writer) (io.WriteCloser, error) {
+	return flate.NewWriter(w, flate.DefaultCompression)
+}
+
+func (deflate) Decompress(r io.Reader) (io.Reader, error) { return flate.NewReader(r), nil }
 
 // rawCodec hands the messages over as bytes: we have no .proto files.
 type rawCodec struct{}

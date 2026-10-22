@@ -41,6 +41,8 @@ quintessence-server.exe -listen 0.0.0.0:6000   address and port, UDP and TCP
                         -no-dtls                only record, never answer the handshake
 ```
 
+If the server can't start, the reason is in the `.log` and stays on screen until you press Enter. "Is another server already running on this port?" means an older server window is still open: close it. A warning about **no UDP** is harmless: some Windows setups (network filters from antivirus or VPN software) refuse a UDP socket option Go sets, and the server carries on with TCP, which is what the gateway uses. If the server ever dies, the reason is in `session-<time>.crash.txt`.
+
 If the log says the handshake failed, try `-cert ecdsa`. If nothing arrives at all, the client may be using a different port, or it never got as far as connecting. Check that the launcher's Server setting matches `-listen`.
 
 ## Reading the .pcap in Wireshark

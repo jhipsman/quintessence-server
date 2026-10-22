@@ -54,6 +54,7 @@ func (s *TCPServer) Serve() {
 }
 
 func (s *TCPServer) handle(c net.Conn) {
+	defer s.cap.Recover("a TCP connection")
 	client, local := addrPort(c.RemoteAddr()), addrPort(c.LocalAddr())
 	client = netip.AddrPortFrom(client.Addr().Unmap(), client.Port())
 	s.cap.Notef("TCP %s: connected", client)

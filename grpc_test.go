@@ -74,6 +74,26 @@ func TestGRPCUnaryCallIsLoggedAndAnswered(t *testing.T) {
 	}
 }
 
+func TestGRPCCompressedCallsAreLogged(t *testing.T) {
+	for _, comp := range []string{"gzip", "deflate"} {
+		t.Run(comp, func(t *testing.T) {
+			srv, base := startTCP(t)
+			conn := dial(t, srv)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			req, resp := loginMsg, []byte(nil)
+			err := conn.Invoke(ctx, "/javelin.gateway.Gateway/Login", &req, &resp, grpc.UseCompressor(comp))
+			if status.Code(err) != codes.Unimplemented {
+				t.Fatalf("got %v", err)
+			}
+			log := waitFor(t, base, "answering Unimplemented")
+			if !strings.Contains(log, `1: "Alice"`) {
+				t.Errorf("log:\n%s", log)
+			}
+		})
+	}
+}
+
 func TestGRPCStreamLogsEveryMessage(t *testing.T) {
 	srv, base := startTCP(t)
 	conn := dial(t, srv)

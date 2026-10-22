@@ -129,7 +129,8 @@ func TestFindNames(t *testing.T) {
 		"/usr/lib/x86_64/libc.so\x00" +
 		"GatewayLoginFailed: %s\x00" +
 		"Local Host\x00" +
-		".?AVWorldThing@@\x00")
+		".?AVWorldThing@@\x00" +
+		"{  \"channelName\": \"localhost\", \"localhost\": { \"displayName\": \"Local Host\", \"world\": \"" + strings.Repeat("x", 300) + "\" } }\x00")
 	n := FindNames(bin)
 	wantM := []string{"/Javelin.RPC.StubbedGatewayService/GetLoginInfo", "/Javelin.RPC.WorldService/Join", "/grpc.health.v1.Health/Check"}
 	if strings.Join(n.Methods, ",") != strings.Join(wantM, ",") {
@@ -137,6 +138,9 @@ func TestFindNames(t *testing.T) {
 	}
 	if strings.Join(n.Types, ",") != "Javelin.RPC.GetLoginInfoResponse" {
 		t.Errorf("types = %v (service names must not count as types)", n.Types)
+	}
+	if len(n.JSON) != 1 || !strings.HasSuffix(n.JSON[0], "\" } }") {
+		t.Errorf("json = %q (must be whole)", n.JSON)
 	}
 	if rel := strings.Join(n.Related, "\n"); !strings.Contains(rel, "GatewayLoginFailed: %s") || !strings.Contains(rel, "Local Host") || strings.Contains(rel, ".?AV") {
 		t.Errorf("related = %v", n.Related)

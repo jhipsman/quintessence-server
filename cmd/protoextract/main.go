@@ -195,7 +195,11 @@ func writeNames(n Names, path string) error {
 	for _, r := range n.Related {
 		b.WriteString(r + "\n")
 	}
-	fmt.Printf("Found %d gRPC methods and %d Javelin type names.\n", len(n.Methods), len(n.Types))
+	fmt.Fprintf(&b, "\n# Embedded JSON documents, in full (%d)\n", len(n.JSON))
+	for _, j := range n.JSON {
+		b.WriteString(j + "\n\n")
+	}
+	fmt.Printf("Found %d gRPC methods, %d Javelin type names and %d JSON documents.\n", len(n.Methods), len(n.Types), len(n.JSON))
 	return os.WriteFile(path, []byte(b.String()), 0o644)
 }
 

@@ -14,7 +14,16 @@ type Names struct {
 	Methods []string // "/Package.Service/Method"
 	Types   []string // "Javelin.RPC.SomeMessage"
 	Related []string // other strings that mention the gateway, login, worlds, hosts or the stubbed mode
+	JSON    []string // embedded JSON documents, in full (configs such as the stubbed "localhost" channel)
 }
+
+// jsonRE spots a JSON object: an opening brace, then a quoted key and a colon.
+var jsonRE = regexp.MustCompile(`^\s*\{\s*"[^"]+"\s*:`)
+
+const (
+	maxJSON    = 300
+	maxJSONLen = 200_000
+)
 
 var (
 	methodRE = regexp.MustCompile(`/[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+/[A-Za-z_][A-Za-z0-9_]*`)
@@ -29,7 +38,7 @@ var relatedWords = []string{"gateway", "login", "world", "local host", "localhos
 
 // FindNames scans the printable ASCII strings of a binary for protocol names.
 func FindNames(data []byte) Names {
-	methods, types, related := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	methods, types, related, jsonDocs := map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}
 	start := -1
 	flush := func(end int) {
 		if start < 0 || end-start < 6 {
@@ -45,6 +54,13 @@ func FindNames(data []byte) Names {
 		}
 		for _, t := range typeRE.FindAllString(s, -1) {
 			types[strings.TrimRight(t, ".")] = true
+		}
+		if len(jsonDocs) < maxJSON && jsonRE.MatchString(s) {
+			if len(s) > maxJSONLen {
+				s = s[:maxJSONLen] + "…"
+			}
+			jsonDocs[s] = true
+			return
 		}
 		low := strings.ToLower(s)
 		if len(related) < maxRelated && containsAny(low, relatedWords) && !strings.HasPrefix(s, ".?A") {
@@ -71,7 +87,7 @@ func FindNames(data []byte) Names {
 		svc := strings.SplitN(m[1:], "/", 2)[0]
 		delete(types, svc)
 	}
-	return Names{Methods: sorted(methods), Types: sorted(types), Related: sorted(related)}
+	return Names{Methods: sorted(methods), Types: sorted(types), Related: sorted(related), JSON: sorted(jsonDocs)}
 }
 
 func containsAny(s string, words []string) bool {

@@ -68,4 +68,12 @@ String fields known by name (numbers unknown unless noted):
 3. 2026-10-22, stub v4 (`-reply empty`): the client accepts an empty `GetLoginInfoResult` (no error, no retry loop) but makes no further call; it asks `GetLoginInfo` again later (6 s, then 36 s). An empty result most likely reads as "no worlds, no characters".
 4. 2026-10-22, stub v5 (`-reply probe`): **character select screen.** One character named `@3@4@_@_`, marked "World Unavailable"; world dropdown "Local Host 1/0"; Play greyed out. So `GetLoginInfoResult` field 3 = repeated characters, character field 4 = name. Probe 1 answers `GetLoginInfo` with a message that fills fields 1-20, each with fields 1-15 holding labels of their position (`probe.go`), to see which fields the game shows as worlds and characters.
 5. 2026-10-22, stub v6 (`-reply probe2`, every text `@W@W@W@W` except the character name `@N@a@m@e`): **no character listed** (4 × Create Character), header "Local Host 0/4". The dropdown lists only **"Local Host" (0 ms, 0/0)**: a world the client adds itself in stubbed mode. Reading: the character's world_id now matches the worlds in our reply, which the dropdown filters out, so the character moved there.
-6. Next: `-reply probe3`: 14 characters, character j has only field j = `@W@W@W@W` (named `@C@j@_@_`), plus `@E@m@p@t` with every field empty. The one missing from the list has world_id in field j.
+6. 2026-10-22, stub v7 (`-reply probe3`): **no character at all**, not even the ones whose world_id stayed a unique label, nor `@E@m@p@t`. So the world-match reading of capture 5 is incomplete: something in the other top-level fields (all `@W@W@W@W` in probes 2 and 3, labels in probe 1) decides whether characters show. Probe 3 was: 14 characters, character j has only field j = `@W@W@W@W` (named `@C@j@_@_`), plus `@E@m@p@t` with every field empty. The one missing from the list has world_id in field j.
+
+## Clues from the exe strings (second NAMES.txt)
+
+- "Local Host" likely comes from an embedded JSON channel config: `{"channelName": "localhost", "localhost": {"displa…` (cut off; the next protoextract keeps JSON whole).
+- Worlds can come from a local file: `@assets@/worlds.override.json`, "Local override location of worlds dynamic data"; `CreateDefaultWorld`, `DevWorld`, `@mm_defaultworldname`.
+- Worlds are filtered: `MainMenu.IsWorldVersionMatch`; "When enabled, UI will show worlds which are flagged as hidden"; `SelectWorldByType - Invalid match. worldType=%d; best world=%s, type=%d, version=%s`. `Unable to find %s world, will use default/empty world id.`
+- Character limits: `MaxAccountCharacters`, `MaxChannelCharacters`, `TooManyCharactersForWorld`.
+- `World Metrics: worldAgeDays=%d, queueSize=%d, queueWaitTimeSec=%d, worldPopulationStatus=%s`.

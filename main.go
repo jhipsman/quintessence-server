@@ -4,8 +4,11 @@
 // (-GatewayAddr host:port), on UDP and on TCP, and records everything the
 // client sends:
 //
-//   - every datagram and every TCP chunk, both ways, as a hex dump in a text
-//     log, with DTLS records decoded (the ClientHello in full);
+//   - gRPC calls: the gateway client is C++ gRPC over cleartext HTTP/2, so
+//     TCP connections that open with the HTTP/2 preface go to a gRPC server
+//     that accepts any method and logs it with its metadata and messages;
+//   - every datagram and every other TCP chunk, both ways, as a hex dump in
+//     a text log, with DTLS records decoded (the ClientHello in full);
 //   - the same traffic as a .pcap that Wireshark opens;
 //   - when the client speaks DTLS, the server completes the handshake with a
 //     self-signed certificate (the launcher's patch #1 makes the client accept

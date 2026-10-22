@@ -112,6 +112,18 @@ func (c *Capture) Packet(proto string, client, server netip.AddrPort, fromClient
 	c.writePcap(now, proto, src, dst, data)
 }
 
+// PcapOnly records traffic in the pcap but not in the text log, for streams
+// the log shows at a higher level (gRPC calls).
+func (c *Capture) PcapOnly(proto string, client, server netip.AddrPort, fromClient bool, data []byte) {
+	src, dst := client, server
+	if !fromClient {
+		src, dst = server, client
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.writePcap(time.Now(), proto, src, dst, data)
+}
+
 // Decrypted records application data after the DTLS layer took it apart.
 func (c *Capture) Decrypted(client netip.AddrPort, fromClient bool, data []byte) {
 	dir := "client -> server"
@@ -141,6 +153,8 @@ func indent(s string) string {
 // describeStream names the obvious things a TCP client might open with.
 func describeStream(b []byte) string {
 	switch {
+	case strings.HasPrefix(string(b), "PRI * HTTP/2.0"):
+		return "HTTP/2 connection preface (cleartext h2c)"
 	case len(b) >= 3 && b[0] == 0x16 && b[1] == 0x03:
 		return "looks like a TLS handshake (TCP)"
 	case len(b) >= 4 && (string(b[:4]) == "GET " || string(b[:4]) == "POST" || string(b[:4]) == "PUT " || string(b[:4]) == "HEAD"):

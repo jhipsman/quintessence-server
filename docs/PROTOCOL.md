@@ -129,3 +129,23 @@ Probe results, explained: probe 1's character pointed at world `@3@3@_@_` while 
 
 1. v8: the world "Quintessence" listed in View Worlds (queue 0, population LOW); character menu 0/0, no slot.
 2. v9 (fields 5 and 6 = 4): **character creation works** (ValidateCharacter, CreateCharacter with a 1964-byte request holding the appearance, character listed); Play opens "Logging in… Position in queue 1" and the client calls RefreshQueuedLogin 779 times, every ~25 ms: our token had no signature.
+3. v10 (signed token): **the client leaves the queue and connects to the world server ("REP") at the token's `rep_endpoint`**: UDP from local port 27000 (27001, 27002 on later tries) to 127.0.0.1:6000, **DTLS 1.2 handshake completes** with our self-signed certificate (TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384), then application data. Unanswered, the client shows "Connection Error: Unable to connect to the server" after ~18 s.
+
+## REP (world server) protocol: first look
+
+Decrypted client datagrams (capture of 2026-10-22 21:04):
+
+```
+80 01 00 02  a0 00 05  03 00 00 ff ff  00 00 00 05 01 88 00 06 ff ff 00 00 00 05 01 01 88 00 02 ff ff  20 06
+80 01 00 03  a0 00 07  03 00 03 ff ff  00 00 00 05 01 01 01 88 00 02 ff ff  20 06
+80 01 00 07  a0 00 02  03 00 0b ff ff  20 06                                        (every ~115 ms)
+80 01 00 11  a0 00 0d  03 00 17 ff ff  00 00 00 05 01 01 01 01 01 01 01 01 01 88 00 02 ff ff  20 06   (every ~1 s)
+```
+
+- `80 01` + a 16-bit counter, +1 per datagram: packet sequence.
+- `a0 00 XX`: a block of XX bytes (2 for the heartbeats).
+- `03 00 YY ff ff`: a second counter (YY grows faster than the packet sequence) and `ff ff`, probably "nothing received yet" (an ack).
+- Every ~1 s a larger datagram whose run of `01` grows by one each time: most likely a connection request re-sent, with a retry or reliability counter.
+- Every datagram ends `20 06`.
+
+Next: find the REP framing in the client (strings `Manifold`, `REP`, the `StartREPLogin` path at `0x146468370`) and answer the connection request.

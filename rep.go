@@ -49,6 +49,12 @@ var (
 	// A compact string is a flags byte, then 16 UUID bytes if bit 0 is set,
 	// otherwise a varint-length string.
 	typePlayerManagerSelfIdentification = mustUUID("169443e0-a508-4653-b437-49b7a195f69c")
+
+	// Javelin::ClientViewListenerTrait::ReceivePlayerSpawnPointMsg (type index
+	// 1617, empty body; unmarshal 0x1414e3930): what the client waits for in
+	// WaitingForSpawnPoint. Its handler (0x14645c660) sets the "spawn point
+	// found" flag (0x145a9fa00).
+	typeReceivePlayerSpawnPoint = mustUUID("21207525-b448-4193-aaca-83d4f847929f")
 )
 
 // repTypeNames names type UUIDs, for envelopes that give one (index 0).
@@ -56,6 +62,7 @@ var (
 var repTypeNames = map[string]string{
 	hex.EncodeToString(typeRegistrationResponse[:]):            "RegistrationResponseMsg",
 	hex.EncodeToString(typePlayerManagerSelfIdentification[:]): "PlayerManagerSelfIdentificationMsg",
+	hex.EncodeToString(typeReceivePlayerSpawnPoint[:]):         "ReceivePlayerSpawnPointMsg",
 }
 
 // The login messages, by their index in the client's type table.
@@ -307,16 +314,29 @@ func appendCompactString(b []byte, s string) []byte {
 	return appendRepString(append(b, 0), s)
 }
 
-// selfIdentifyAfter is how long after authorizing the client the REP sends
-// PlayerManagerSelfIdentificationMsg: the client starts its actor game
-// connection ~50 ms after the registration response and only then listens.
-const selfIdentifyAfter = time.Second
+// repStep is a message the REP sends on its own, some time after it
+// authorized the client.
+type repStep struct {
+	after time.Duration
+	name  string
+	frame func() []byte // the envelope
+}
+
+// repLoginSteps walk the client through its GameConnection states. The client
+// starts its actor game connection ~50 ms after the registration response and
+// only then listens, hence the first second.
+var repLoginSteps = []repStep{
+	// WaitingForActorGameConnection -> WaitingForSpawnPoint
+	{time.Second, "PlayerManagerSelfIdentificationMsg (all fields empty)", playerSelfIdentification},
+	// WaitingForSpawnPoint -> WaitingForPlayerSpawn
+	{2 * time.Second, "ReceivePlayerSpawnPointMsg", func() []byte { return repEnvelope(typeReceivePlayerSpawnPoint, nil) }},
+}
 
 // repSession is the REP end of one client.
 type repSession struct {
-	start        time.Time
-	authorized   time.Time // zero until the registration response is sent
-	identifiedAt time.Time // when PlayerManagerSelfIdentificationMsg went out
+	start      time.Time
+	authorized time.Time // zero until the registration response is sent
+	steps      int       // repLoginSteps sent so far
 }
 
 func newRepSession() *repSession { return &repSession{start: time.Now()} }
@@ -349,10 +369,14 @@ func (r *repSession) Handle(data []byte) (replies [][]byte, notes []string) {
 
 // Tick returns the frames the REP sends on its own, when they are due.
 func (r *repSession) Tick(now time.Time) (replies [][]byte, notes []string) {
-	if !r.authorized.IsZero() && r.identifiedAt.IsZero() && now.Sub(r.authorized) >= selfIdentifyAfter {
-		r.identifiedAt = now
-		replies = append(replies, repDownFrame(playerSelfIdentification()))
-		notes = append(notes, "    REP: sending PlayerManagerSelfIdentificationMsg (all fields empty)")
+	if r.authorized.IsZero() {
+		return nil, nil
+	}
+	for r.steps < len(repLoginSteps) && now.Sub(r.authorized) >= repLoginSteps[r.steps].after {
+		s := repLoginSteps[r.steps]
+		r.steps++
+		replies = append(replies, repDownFrame(s.frame()))
+		notes = append(notes, "    REP: sending "+s.name)
 	}
 	return replies, notes
 }

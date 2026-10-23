@@ -143,29 +143,35 @@ func TestDownFrameVarintLength(t *testing.T) {
 	}
 }
 
-func TestRepSelfIdentificationAfterAuthorization(t *testing.T) {
+func TestRepLoginStepsAfterAuthorization(t *testing.T) {
 	r := newRepSession()
 	now := time.Now()
 	if out, _ := r.Tick(now); len(out) != 0 {
 		t.Fatal("sent before authorization")
 	}
 	r.authorized = now
-	if out, _ := r.Tick(now.Add(selfIdentifyAfter / 2)); len(out) != 0 {
+	if out, _ := r.Tick(now.Add(repLoginSteps[0].after / 2)); len(out) != 0 {
 		t.Fatal("sent too early")
 	}
-	out, _ := r.Tick(now.Add(selfIdentifyAfter))
-	if len(out) != 1 {
-		t.Fatalf("%d frames, want 1", len(out))
+	want := []struct {
+		typ  [16]byte
+		body int
+	}{{typePlayerManagerSelfIdentification, 127}, {typeReceivePlayerSpawnPoint, 0}}
+	for i, w := range want {
+		out, _ := r.Tick(now.Add(repLoginSteps[i].after))
+		if len(out) != 1 {
+			t.Fatalf("step %d: %d frames, want 1", i, len(out))
+		}
+		envs, err := splitRepDownFrames(out[0])
+		if err != nil || len(envs) != 1 {
+			t.Fatalf("step %d: frames %v, %v", i, envs, err)
+		}
+		m, err := parseRepEnvelope(envs[0])
+		if err != nil || m.Type != w.typ || len(m.Body) != w.body {
+			t.Fatalf("step %d: got %+v, %v", i, m, err)
+		}
 	}
-	envs, err := splitRepDownFrames(out[0])
-	if err != nil || len(envs) != 1 {
-		t.Fatalf("frames %v, %v", envs, err)
-	}
-	m, err := parseRepEnvelope(envs[0])
-	if err != nil || m.Type != typePlayerManagerSelfIdentification || len(m.Body) != 127 {
-		t.Fatalf("got %+v, %v", m, err)
-	}
-	if out, _ := r.Tick(now.Add(2 * selfIdentifyAfter)); len(out) != 0 {
+	if out, _ := r.Tick(now.Add(time.Hour)); len(out) != 0 {
 		t.Fatal("sent twice")
 	}
 }

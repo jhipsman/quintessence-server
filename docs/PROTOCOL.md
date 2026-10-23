@@ -1,6 +1,6 @@
 # What we know about the protocol
 
-New World build `1.400.6031.6004151`, started by the Quintessence launcher with `-GatewayMode stubbed -GatewayAddr <host:port>`. Everything here comes from captures of the real client and from strings in `NewWorld.exe` (`NAMES-1.400.6031.txt`, written by `protoextract`). Field **names** are known only for string fields; field **numbers** are known only where a capture shows them.
+New World build `1.400.6031.6004151`, started by the Quintessence launcher with `-GatewayMode stubbed -GatewayAddr <host:port>`. Everything here comes from captures of the real client and from strings in `NewWorld.exe` (the `NAMES.txt` that `protoextract` writes; run it on your own copy, it isn't kept in this repository). The message layouts in the last part were recovered from the client's code, with field numbers for every field.
 
 ## Transport
 

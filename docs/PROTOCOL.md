@@ -223,3 +223,34 @@ Each type registers itself with its name and UUID as strings, so `tools/re/typen
 | 19 | `RegistrationRequestV3Msg` (`0B826B33-…`) |
 
 The rest include `SpawnActorsMsg` (574), `TimeSynchMsg` (335), `PingMsg` (349), `KickClientMsg` (271), `ClientConnectionMsg` (374) and the fragment and actor messages, which are probably what follows authorization.
+
+## After authorization: the client's GameConnection states (2026-10-23)
+
+**The game's own log** is the best guide: `%LOCALAPPDATA%\AGS\New World\Game.log` (older runs in `LogBackups\`). It names every state change and every message it fails to read, for example `Failed to unmarshal MessageEnvelope::m_message. {"unmarshalError":"BufferOverrun","messageTypeId":"…"}`.
+
+The states after the REP authorizes the client (`0x14644a070`), with what moves each one on:
+
+| State | Waits for | Status |
+|---|---|---|
+| WaitingForREPConnection | `RegistrationResponseMsg` | done |
+| WaitingForActorGameConnection | `Javelin::ClientMessagesTrait::PlayerManagerSelfIdentificationMsg` (index 1628): "actor game connection succeeds" | done, all fields empty |
+| WaitingForSpawnPoint | `Javelin::ClientViewListenerTrait::ReceivePlayerSpawnPointMsg` (index 1617, empty body): "spawn point found" | done |
+| WaitingForPlayerSpawn | the actor game's flag `+0x252` (`0x145a923c0`) and a local player with an entity: "player spawn succeeds, in game" | next |
+| InGame | | |
+
+A state that waits too long ends with `Errors::connection_game_timeout` ("Timed out while waiting for gameplay on the server", about 2 minutes).
+
+After authorization, every REP → client type that the REP connection doesn't handle itself (`0x146b6f190` handles RegistrationResponse, TimeSynch, Ping, hub info, ClientAdd/RemoveEntry, Update and the text filters) is queued for the game (`0x146b6bf50`). No target actor or routing block is needed: `repEnvelope` (flags 0, type by UUID) works.
+
+`PlayerManagerSelfIdentificationMsg` body (factory unmarshal `0x1414fd530`):
+
+```
+compact string                                  flags u8; bit 0 -> 16 UUID bytes, else varint-length string
+3 x { u32, 16 bytes, 16 bytes }                 probably actor ids
+u32 | varint n, n x u32 | bool | bool | f32 | f32
+compact string
+```
+
+**Finding a message's layout.** A Hub message registers through `Amazon::Hub::InstallRegistrationHook<Msg>`. `tools/re/msginfo.py <MsgName> [Trait]` follows its lambda's RTTI to the type getter, which gives the UUID (and so the type index), and the factory, whose slot 5 is the unmarshal function. Read that function, not the message vtable: the first attempt here read a neighbouring class and got a 4-byte body the client rejected as BufferOverrun.
+
+**Running a test without the launcher's window.** The game must be started from the launcher with Steam already running; otherwise pressing Play makes it relaunch through Steam ("Steam must be running"). After a server restart the game retries the REP login by itself.

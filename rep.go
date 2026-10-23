@@ -11,11 +11,16 @@ import (
 )
 
 // Above the carrier, the world server ("REP", Amazon's Manifold) speaks in
-// frames carried by reliable messages on carrier channel 0:
+// frames carried by reliable messages on carrier channel 0. The two
+// directions are framed differently:
 //
-//	frame    = crc32 of the payload (u32) | payload length (u32) | payload
-//	payload  = target actor id (16 bytes, all zero for the REP itself)
-//	           MessageEnvelope
+//	client -> REP: crc32 of the payload (u32) | payload length (u32) | payload
+//	               payload = target actor id (16 bytes, zero for the REP itself)
+//	                         MessageEnvelope
+//	               (client marshaller vtable 0x148590be8)
+//	REP -> client: a byte stream of varint length | MessageEnvelope
+//	               (client parser 0x146ae44f0; no CRC, no actor id)
+//
 //	envelope = flags (u8: 1 -> 8 more bytes, 2 -> 8 more bytes, 4 -> routing block)
 //	           message present (u8, 0 or 1)
 //	           type: varint index into the client's type table, or 0 and the
@@ -122,10 +127,29 @@ func splitRepFrames(b []byte) (payloads [][]byte, err error) {
 	return payloads, nil
 }
 
-func repFrame(payload []byte) []byte {
+// repUpFrame frames a client -> REP payload (used by tests).
+func repUpFrame(payload []byte) []byte {
 	out := binary.BigEndian.AppendUint32(nil, crc32.ChecksumIEEE(payload))
 	out = binary.BigEndian.AppendUint32(out, uint32(len(payload)))
 	return append(out, payload...)
+}
+
+// repDownFrame frames a REP -> client envelope.
+func repDownFrame(envelope []byte) []byte {
+	return append(appendVarint(nil, uint32(len(envelope))), envelope...)
+}
+
+// splitRepDownFrames splits a REP -> client stream into envelopes.
+func splitRepDownFrames(b []byte) (envelopes [][]byte, err error) {
+	for len(b) > 0 {
+		n, k, ok := readVarint(b)
+		if !ok || uint64(n) > uint64(len(b)-k) {
+			return envelopes, errRepShort
+		}
+		envelopes = append(envelopes, b[k:k+int(n)])
+		b = b[k+int(n):]
+	}
+	return envelopes, nil
 }
 
 // repMessage is one decoded payload.
@@ -148,13 +172,22 @@ func (m repMessage) TypeName() string {
 	return "unknown type " + key
 }
 
+// parseRepPayload reads a client -> REP payload: actor id, then envelope.
 func parseRepPayload(p []byte) (m repMessage, err error) {
-	if len(p) < 18 {
+	if len(p) < 16 {
 		return m, errRepShort
 	}
+	m, err = parseRepEnvelope(p[16:])
 	copy(m.Target[:], p)
-	m.Flags = p[16]
-	p = p[17:]
+	return m, err
+}
+
+func parseRepEnvelope(p []byte) (m repMessage, err error) {
+	if len(p) < 2 {
+		return m, errRepShort
+	}
+	m.Flags = p[0]
+	p = p[1:]
 	if m.Flags&^1&^2 != 0 {
 		return m, fmt.Errorf("envelope flags 0x%02x (routing block) not handled", m.Flags)
 	}
@@ -186,9 +219,9 @@ func parseRepPayload(p []byte) (m repMessage, err error) {
 	return m, nil
 }
 
-// repPayload builds a payload from the REP (nil actor) with a type UUID.
-func repPayload(typ [16]byte, body []byte) []byte {
-	p := make([]byte, 16, 16+3+16+len(body))
+// repEnvelope builds an envelope that names its type by UUID.
+func repEnvelope(typ [16]byte, body []byte) []byte {
+	p := make([]byte, 0, 3+16+len(body))
 	p = append(p, 0, 1, 0) // no envelope flags, a message, type by UUID
 	p = append(p, typ[:]...)
 	return append(p, body...)
@@ -201,7 +234,7 @@ func registrationResponse(clock time.Duration, sessionID, serverVersion string) 
 	b = appendRepString(b, sessionID)
 	b = appendRepString(b, serverVersion)
 	b = append(b, 0, 0, 0, 0) // no Easy Anti-Cheat
-	return repPayload(typeRegistrationResponse, b)
+	return repEnvelope(typeRegistrationResponse, b)
 }
 
 // printableStrings lists the length-prefixed strings in a body, for the log.
@@ -250,7 +283,7 @@ func (r *repSession) Handle(data []byte) (replies [][]byte, notes []string) {
 		}
 		notes = append(notes, fmt.Sprintf("    REP message to actor %x: %s, %d-byte body\n      strings: %q", m.Target, m.TypeName(), len(m.Body), printableStrings(m.Body)))
 		if m.TypeIndex == 2 {
-			replies = append(replies, repFrame(registrationResponse(time.Since(r.start), "quintessence-session", "Quintessence 1.400.6031.6004151")))
+			replies = append(replies, repDownFrame(registrationResponse(time.Since(r.start), "quintessence-session", "Quintessence 1.400.6031.6004151")))
 			notes = append(notes, "    REP: answering RegistrationResponseMsg: authorized")
 		}
 	}

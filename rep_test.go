@@ -93,11 +93,15 @@ func TestSessionAuthorizesLogin(t *testing.T) {
 	if resp == nil || !resp.Reliable() || resp.RelSeq != 0 {
 		t.Fatalf("response %+v", resp)
 	}
-	payloads, err := splitRepFrames(resp.Data)
-	if err != nil || len(payloads) != 1 {
-		t.Fatalf("%d frames, %v", len(payloads), err)
+	// REP -> client frames are varint length + envelope: no CRC, no actor id.
+	envs, err := splitRepDownFrames(resp.Data)
+	if err != nil || len(envs) != 1 {
+		t.Fatalf("%d frames, %v", len(envs), err)
 	}
-	m, err := parseRepPayload(payloads[0])
+	if int(resp.Data[0]) != len(envs[0]) || len(resp.Data) != 1+len(envs[0]) {
+		t.Errorf("length prefix %x for %d bytes", resp.Data[0], len(envs[0]))
+	}
+	m, err := parseRepEnvelope(envs[0])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,9 +119,26 @@ func TestSessionAuthorizesLogin(t *testing.T) {
 
 func TestRegistrationResponseLayout(t *testing.T) {
 	p := registrationResponse(1500*time.Millisecond, "ab", "v1")
-	want := "00000000000000000000000000000000" + "000100" + hex.EncodeToString(typeRegistrationResponse[:]) +
+	want := "000100" + hex.EncodeToString(typeRegistrationResponse[:]) +
 		"00000000" + "0000000059682f00" + "026162" + "027631" + "00000000"
 	if got := hex.EncodeToString(p); got != want {
 		t.Errorf("\n got %s\nwant %s", got, want)
+	}
+}
+
+func TestDownFrameVarintLength(t *testing.T) {
+	short := repDownFrame([]byte{1, 2, 3})
+	if hex.EncodeToString(short) != "03010203" {
+		t.Errorf("short frame %x", short)
+	}
+	env := make([]byte, 300)
+	f := repDownFrame(env)
+	// 300 = 0b100101100: low 6 bits 0x2c with the 2-byte marker, then 300>>6.
+	if f[0] != 0xac || f[1] != 0x04 || len(f) != 302 {
+		t.Errorf("long frame header %x, length %d", f[:2], len(f))
+	}
+	envs, err := splitRepDownFrames(append(short, f...))
+	if err != nil || len(envs) != 2 || len(envs[1]) != 300 {
+		t.Errorf("split: %d envelopes, %v", len(envs), err)
 	}
 }

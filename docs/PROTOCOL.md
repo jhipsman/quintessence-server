@@ -197,3 +197,12 @@ First test of the carrier connect (capture 2026-10-22 21:16): the client accepte
   - four bools. The fourth makes the client start Easy Anti-Cheat; it must be 0.
 
 `rep.go` sends this answer by type UUID (index 0), so no type table is needed.
+
+### The two directions are framed differently (2026-10-23)
+
+Test of 21:52: the client dropped the connection 9 ms after our first answer with "Server data error. Please check for a patch. (0)". That error is fatal error 10, which `0x146b6eb70` raises when a message fails to unmarshal before authorization.
+
+- **Client → REP.** The marshaller (vtable `0x148590be8`, `0x146b0f430`) reserves 8 bytes, writes the 16-byte target actor id (slot 4, `0x146b0f640`) and the envelope, then fills in `crc32 | len` (slot 3, `0x146b0f350`, CRC `0x1412f47d0`).
+- **REP → client.** Data from the transport (`0x146b714d0` → `0x146b6ba90` → `0x146af1d90`) is a byte stream. The parser `0x146ae44f0` reads `varint length | MessageEnvelope` frames and hands each to `0x146b6eb70`. There is no CRC and no actor id.
+
+So the first answer, sent in the client → REP framing, was misread. The server now frames its messages as `varint length | envelope`.

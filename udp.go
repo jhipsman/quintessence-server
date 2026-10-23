@@ -79,8 +79,9 @@ type UDPServer struct {
 	dtls  *DTLSSetup
 	local netip.AddrPort
 
-	mu    sync.Mutex
-	peers map[netip.AddrPort]*peerConn
+	mu      sync.Mutex
+	peers   map[netip.AddrPort]*peerConn
+	ackOnly int
 }
 
 func ListenUDP(addr *net.UDPAddr, cap *Capture, d *DTLSSetup) (*UDPServer, error) {
@@ -162,6 +163,34 @@ func (s *UDPServer) serveDTLS(p *peerConn) {
 	state, _ := conn.ConnectionState()
 	s.cap.Notef("UDP %s: DTLS handshake COMPLETE, cipher suite %s. Everything below is decrypted.", p.addr, dtls.CipherSuiteName(state.CipherSuiteID))
 
+	cs := newCarrierSession()
+	var wmu sync.Mutex
+	send := func(out [][]byte) {
+		wmu.Lock()
+		defer wmu.Unlock()
+		for _, d := range out {
+			s.logCarrier(p.addr, false, d)
+			if _, err := conn.Write(d); err != nil {
+				s.cap.Notef("UDP %s: DTLS write failed: %v", p.addr, err)
+			}
+		}
+	}
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		defer s.cap.Recover("the carrier timer")
+		t := time.NewTicker(50 * time.Millisecond)
+		defer t.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-t.C:
+				send(cs.Tick())
+			}
+		}
+	}()
+
 	buf := make([]byte, 65536)
 	for {
 		conn.SetReadDeadline(time.Now().Add(peerIdle))
@@ -170,8 +199,36 @@ func (s *UDPServer) serveDTLS(p *peerConn) {
 			s.cap.Notef("UDP %s: DTLS connection ended: %v", p.addr, err)
 			return
 		}
-		s.cap.Decrypted(p.addr, true, append([]byte(nil), buf[:n]...))
+		data := append([]byte(nil), buf[:n]...)
+		s.logCarrier(p.addr, true, data)
+		out, note := cs.Receive(data)
+		if note != "" {
+			s.cap.Notef("UDP %s:\n%s", p.addr, note)
+		}
+		send(out)
 	}
+}
+
+// logCarrier logs one decrypted datagram. Datagrams that only carry acks go
+// to the pcap and are counted, or keep-alives would flood the log.
+func (s *UDPServer) logCarrier(addr netip.AddrPort, fromClient bool, data []byte) {
+	d, err := parseCarrierDatagram(data)
+	if err == nil && onlyAcks(d) {
+		s.mu.Lock()
+		s.ackOnly++
+		n := s.ackOnly
+		s.mu.Unlock()
+		if n%200 == 0 {
+			s.cap.Notef("UDP %s: %d ack-only carrier datagrams so far (not logged one by one)", addr, n)
+		}
+		return
+	}
+	s.cap.Decrypted(addr, fromClient, data)
+	if err != nil {
+		s.cap.Notef("    carrier: cannot parse: %v", err)
+		return
+	}
+	s.cap.Notef("%s", describeCarrier(d))
 }
 
 // isClientHello says whether a datagram starts with a DTLS handshake record

@@ -148,4 +148,26 @@ Decrypted client datagrams (capture of 2026-10-22 21:04):
 - Every ~1 s a larger datagram whose run of `01` grows by one each time: most likely a connection request re-sent, with a retry or reliability counter.
 - Every datagram ends `20 06`.
 
-Next: find the REP framing in the client (strings `Manifold`, `REP`, the `StartREPLogin` path at `0x146468370`) and answer the connection request.
+(First reading, before the framing was known. The corrected reading is below.)
+
+## REP transport: GridMate Carrier (2026-10-23)
+
+The decrypted datagrams are Lumberyard's GridMate Carrier (`Carrier.cpp`), with a 2-byte New World prefix in front. Everything is big endian.
+
+```
+datagram = prefix (2: 80 01, meaning unknown, the server echoes it) | datagram seq (u16) | messages
+message  = flags (u8) | data size (u16)
+           [channel (u8)    if MF_DATA_CHANNEL 0x20]
+           [chunks (u16)    if MF_CHUNKS 0x04]
+           [seq (u16)       unless MF_SEQUENTIAL_ID 0x08: previous + 1]
+           [rel seq (u16)   unless MF_SEQUENTIAL_REL_ID 0x10: previous, +1 if reliable]
+           data
+flags: MF_RELIABLE 0x01, MF_CONNECTING 0x80 (sent before the connection is up), 0x42 unused
+```
+
+So `80 01 00 02 | a0 00 05 03 00 00 ff ff 00 00 00 05 01 | 88 00 06 ff ff 00 00 00 05 01 01 | 88 00 02 ff ff 20 06` is datagram 2 with three channel-3 (system) messages: SM_CONNECT_REQUEST (version `00 00 00 05`, id `01`), the same again (the extra `01` is a Lumberyard quirk: each retry appends the id byte once more), and SM_CT_ACKS keep-alive (`20` = AHF_KEEP_ALIVE, id `06`).
+
+System message ids (last data byte): 1 CONNECT_REQUEST, 2 CONNECT_ACK, 3 DISCONNECT, 4 CLOCK_SYNC, 6 CT_ACKS, 7 CT_CONN_CONTROL, 8 CT_BANDWIDTH. Ack data: flags `0x80|n` = last seq + n bitmap bytes; `0x40` = last, first (continuous range); `0x20` keep-alive; otherwise just the last seq.
+
+The server's answer (as `CarrierImpl::ProcessSystemMessages` does it): SM_CLOCK_SYNC (u32 ms, unreliable), then SM_CONNECT_ACK, reliable, carrying the version back, plus acks for the client's datagrams. `carrier.go` implements this, re-sends unacked reliable messages after 250 ms and sends keep-alive acks. Whether New World's handshake is the default one (version only) is the next thing a capture will tell.
+

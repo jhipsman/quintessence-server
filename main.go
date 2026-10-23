@@ -125,7 +125,7 @@ func run(listen, dir string, dtlsOn bool, certType string, reply string) error {
 		transports = "UDP and TCP"
 	}
 
-	mode := "record + DTLS handshake (" + certType + " certificate)"
+	mode := "record + DTLS handshake (" + certType + " certificate) + carrier connect"
 	if !dtlsOn {
 		mode = "record only"
 	}

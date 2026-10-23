@@ -36,12 +36,26 @@ var (
 	// (ns), string (kept by the client), string (the server version), and four
 	// flags; the fourth asks the client to start Easy Anti-Cheat.
 	typeRegistrationResponse = mustUUID("104145a7-ff95-44f1-9468-21fb41c8ac2b")
+
+	// Javelin::ClientMessagesTrait::PlayerManagerSelfIdentificationMsg (type
+	// index 1628): what the client waits for in WaitingForActorGameConnection.
+	// Its handler (GameMessagePort, 0x146454c00) marks the actor game
+	// connection a success (0x145a87010) and spawns the player. The type's
+	// factory (vtable 0x148014880, unmarshal 0x1414fd530) reads:
+	//   compact string                                   (0x14087aab0)
+	//   3 x {u32, 16 bytes, 16 bytes}                    (0x1415acc30)
+	//   u32, varint n + n x u32, bool, bool, f32, f32    (0x1415ba4a0)
+	//   compact string
+	// A compact string is a flags byte, then 16 UUID bytes if bit 0 is set,
+	// otherwise a varint-length string.
+	typePlayerManagerSelfIdentification = mustUUID("169443e0-a508-4653-b437-49b7a195f69c")
 )
 
 // repTypeNames names type UUIDs, for envelopes that give one (index 0).
 // Type indexes are named by repTypeIndex (rep_types.go).
 var repTypeNames = map[string]string{
-	hex.EncodeToString(typeRegistrationResponse[:]): "RegistrationResponseMsg",
+	hex.EncodeToString(typeRegistrationResponse[:]):            "RegistrationResponseMsg",
+	hex.EncodeToString(typePlayerManagerSelfIdentification[:]): "PlayerManagerSelfIdentificationMsg",
 }
 
 // The login messages, by their index in the client's type table.
@@ -271,9 +285,38 @@ func printableStrings(b []byte) []string {
 	return out
 }
 
+// playerSelfIdentification tells the client which player it is. Every field
+// is zero or empty for now: their meaning is still unknown.
+func playerSelfIdentification() []byte {
+	b := appendCompactString(nil, "")
+	for i := 0; i < 3; i++ {
+		b = binary.BigEndian.AppendUint32(b, 0)
+		b = append(b, make([]byte, 32)...)
+	}
+	b = binary.BigEndian.AppendUint32(b, 0)
+	b = appendVarint(b, 0)            // no u32s
+	b = append(b, 0, 0)               // two bools
+	b = append(b, make([]byte, 8)...) // two floats
+	b = appendCompactString(b, "")
+	return repEnvelope(typePlayerManagerSelfIdentification, b)
+}
+
+// appendCompactString writes a string as a plain varint-length string (flags
+// byte 0; flag bit 0 would mean 16 UUID bytes instead).
+func appendCompactString(b []byte, s string) []byte {
+	return appendRepString(append(b, 0), s)
+}
+
+// selfIdentifyAfter is how long after authorizing the client the REP sends
+// PlayerManagerSelfIdentificationMsg: the client starts its actor game
+// connection ~50 ms after the registration response and only then listens.
+const selfIdentifyAfter = time.Second
+
 // repSession is the REP end of one client.
 type repSession struct {
-	start time.Time
+	start        time.Time
+	authorized   time.Time // zero until the registration response is sent
+	identifiedAt time.Time // when PlayerManagerSelfIdentificationMsg went out
 }
 
 func newRepSession() *repSession { return &repSession{start: time.Now()} }
@@ -296,7 +339,20 @@ func (r *repSession) Handle(data []byte) (replies [][]byte, notes []string) {
 		case repIndexRegistrationRequest, repIndexRegistrationRequestV2, repIndexRegistrationRequestV3:
 			replies = append(replies, repDownFrame(registrationResponse(time.Since(r.start), "quintessence-session", "Quintessence 1.400.6031.6004151")))
 			notes = append(notes, "    REP: answering RegistrationResponseMsg: authorized")
+			if r.authorized.IsZero() {
+				r.authorized = time.Now()
+			}
 		}
+	}
+	return replies, notes
+}
+
+// Tick returns the frames the REP sends on its own, when they are due.
+func (r *repSession) Tick(now time.Time) (replies [][]byte, notes []string) {
+	if !r.authorized.IsZero() && r.identifiedAt.IsZero() && now.Sub(r.authorized) >= selfIdentifyAfter {
+		r.identifiedAt = now
+		replies = append(replies, repDownFrame(playerSelfIdentification()))
+		notes = append(notes, "    REP: sending PlayerManagerSelfIdentificationMsg (all fields empty)")
 	}
 	return replies, notes
 }

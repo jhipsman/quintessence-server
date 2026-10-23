@@ -92,14 +92,14 @@ func TestSessionAnswersConnect(t *testing.T) {
 		t.Error("connect ack marked connecting")
 	}
 	// Not acked yet: a tick re-sends it once it is overdue.
-	if re := s.Tick(); len(re) != 0 && bytes.Contains(re[0], []byte{0, 0, 0, 5, smConnectAck}) {
+	if re, _ := s.Tick(); len(re) != 0 && bytes.Contains(re[0], []byte{0, 0, 0, 5, smConnectAck}) {
 		t.Fatal("re-sent at once")
 	}
 	for seq, p := range s.unacked {
 		p.sent = p.sent.Add(-time.Second)
 		s.unacked[seq] = p
 	}
-	re := s.Tick()
+	re, _ := s.Tick()
 	if len(re) != 1 || !bytes.Contains(re[0], []byte{0, 0, 0, 5, smConnectAck}) {
 		t.Fatalf("no re-send: %x", re)
 	}

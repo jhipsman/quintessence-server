@@ -142,3 +142,30 @@ func TestDownFrameVarintLength(t *testing.T) {
 		t.Errorf("split: %d envelopes, %v", len(envs), err)
 	}
 }
+
+func TestRepSelfIdentificationAfterAuthorization(t *testing.T) {
+	r := newRepSession()
+	now := time.Now()
+	if out, _ := r.Tick(now); len(out) != 0 {
+		t.Fatal("sent before authorization")
+	}
+	r.authorized = now
+	if out, _ := r.Tick(now.Add(selfIdentifyAfter / 2)); len(out) != 0 {
+		t.Fatal("sent too early")
+	}
+	out, _ := r.Tick(now.Add(selfIdentifyAfter))
+	if len(out) != 1 {
+		t.Fatalf("%d frames, want 1", len(out))
+	}
+	envs, err := splitRepDownFrames(out[0])
+	if err != nil || len(envs) != 1 {
+		t.Fatalf("frames %v, %v", envs, err)
+	}
+	m, err := parseRepEnvelope(envs[0])
+	if err != nil || m.Type != typePlayerManagerSelfIdentification || len(m.Body) != 127 {
+		t.Fatalf("got %+v, %v", m, err)
+	}
+	if out, _ := r.Tick(now.Add(2 * selfIdentifyAfter)); len(out) != 0 {
+		t.Fatal("sent twice")
+	}
+}

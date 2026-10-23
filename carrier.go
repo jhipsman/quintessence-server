@@ -476,11 +476,20 @@ func (s *carrierSession) deliver(ch byte, data []byte) []string {
 	return notes
 }
 
-// Tick re-sends unacked reliable messages and keeps the connection alive;
-// call it every 100 ms or so.
-func (s *carrierSession) Tick() [][]byte {
+// Tick sends what the REP has due, re-sends unacked reliable messages and
+// keeps the connection alive; call it every 100 ms or so. It returns the
+// datagrams to send and a log note.
+func (s *carrierSession) Tick() ([][]byte, string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	replies, notes := s.rep.Tick(time.Now())
+	for _, r := range replies {
+		s.enqueue(0, true, r)
+	}
+	note := strings.Join(notes, "\n")
+	if len(replies) > 0 {
+		return s.flush(true), note
+	}
 	// re-send the reliable messages unacked for too long, in order
 	var seqs []uint16
 	for seq, p := range s.unacked {
@@ -498,12 +507,12 @@ func (s *carrierSession) Tick() [][]byte {
 			s.queue = append(s.queue, s.unacked[seq].msgs...)
 			delete(s.unacked, seq)
 		}
-		return s.flush(false)
+		return s.flush(false), note
 	}
 	if s.connected && time.Since(s.lastSent) > 100*time.Millisecond {
-		return s.flush(true)
+		return s.flush(true), note
 	}
-	return nil
+	return nil, note
 }
 
 // flush builds one datagram: the queue, then acks (or a keep-alive).

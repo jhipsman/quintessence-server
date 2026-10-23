@@ -186,7 +186,11 @@ func (s *UDPServer) serveDTLS(p *peerConn) {
 			case <-done:
 				return
 			case <-t.C:
-				send(cs.Tick())
+				out, note := cs.Tick()
+				if note != "" {
+					s.cap.Notef("UDP %s:\n%s", p.addr, note)
+				}
+				send(out)
 			}
 		}
 	}()

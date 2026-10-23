@@ -253,4 +253,4 @@ compact string
 
 **Finding a message's layout.** A Hub message registers through `Amazon::Hub::InstallRegistrationHook<Msg>`. `tools/re/msginfo.py <MsgName> [Trait]` follows its lambda's RTTI to the type getter, which gives the UUID (and so the type index), and the factory, whose slot 5 is the unmarshal function. Read that function, not the message vtable: the first attempt here read a neighbouring class and got a 4-byte body the client rejected as BufferOverrun.
 
-**Running a test without the launcher's window.** The game must be started from the launcher with Steam already running; otherwise pressing Play makes it relaunch through Steam ("Steam must be running"). After a server restart the game retries the REP login by itself.
+**Running a test.** The game must be started from the launcher with Steam already running; otherwise pressing Play makes it relaunch through Steam ("Steam must be running"). After a server restart the game retries the REP login by itself.

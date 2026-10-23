@@ -4,3 +4,4 @@ protos/
 characters.json
 # strings dumped from the game exe stay local
 docs/NAMES-*.txt
+__pycache__/

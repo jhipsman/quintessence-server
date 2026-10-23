@@ -119,6 +119,13 @@ What the client checks:
 - **worldType:** `"FTUE"` → 0, `"OpenWorld"` → 1, anything else → 2 (fn `0x1417c40a0`).
 - **Character status:** a character is active when `status == "ACTIVE"` (fn `0x1417423e0`).
 - The client's world record, as its UI scripts see it: `worldAgeDays, queueSize, queueWaitTimeSec, worldPopulationStatus, publicStatusCode, publicName, maxAccountCharacters, worldSet, worldMetrics, transferToRegion, isFull, isRecommended`.
+- **Login queue** (`0x146457700`, `0x14643d110`): `QueueLoginResult` field 1 non-zero = error; `QueueStats` (field 3) first number non-zero = still queued; otherwise the `LoginToken` (field 4) is taken. The client only acts on a token whose **signature** (field 8) differs from the last one it acted on, starting from an empty one, then calls `StartREPLogin` (`0x146468370`) to connect to `rep_endpoint`. An empty signature reads as a repeat and the client polls `RefreshQueuedLogin` every frame. The stubbed client swaps a `rep_endpoint` host of `0.0.0.0` for the gateway's host (`0x146416f30`).
+- `QueueLoginRequest` from the client carries the persona and the character id only (no world id); `RefreshQueuedLoginRequest` only the ticket id.
 - Useful console variables: `g_showHiddenWorlds`, `g_loginQueueBypass`, `g_maintenanceModeBypass`, `g_createCharacterAccountLimitBypass`, `g_selectWorldId`, `g_loginWithWorldTypes`.
 
 Probe results, explained: probe 1's character pointed at world `@3@3@_@_` while the world's id was `@2@1@_@_` ("World Unavailable"); in probes 2 and 3 the ids matched but the world's version (`@W@W@W@W`) failed the version check, taking its characters with it.
+
+## Gateway runs (2026-10-22)
+
+1. v8: the world "Quintessence" listed in View Worlds (queue 0, population LOW); character menu 0/0, no slot.
+2. v9 (fields 5 and 6 = 4): **character creation works** (ValidateCharacter, CreateCharacter with a 1964-byte request holding the appearance, character listed); Play opens "Logging in… Position in queue 1" and the client calls RefreshQueuedLogin 779 times, every ~25 ms: our token had no signature.

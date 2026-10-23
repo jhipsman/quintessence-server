@@ -51,12 +51,19 @@ type Gateway struct {
 	world World
 	path  string
 
-	mu    sync.Mutex
-	chars []Character
+	mu      sync.Mutex
+	chars   []Character
+	tickets map[string]loginTicket // login queue tickets, by id
+}
+
+// loginTicket is what QueueLogin hands out; RefreshQueuedLogin, which only
+// carries the ticket id, gets the same token back.
+type loginTicket struct {
+	persona, charID, worldID, signature string
 }
 
 func NewGateway(path string) (*Gateway, error) {
-	g := &Gateway{world: defaultWorld, path: path}
+	g := &Gateway{world: defaultWorld, path: path, tickets: map[string]loginTicket{}}
 	raw, err := os.ReadFile(path)
 	switch {
 	case err == nil:
@@ -118,12 +125,27 @@ func (g *Gateway) Handle(method string, msgs [][]byte, endpoint string) (reply [
 		return nil, "deleted " + id, true
 	case "PatchCharacter":
 		return resultCode(0), "accepted", true
-	case "QueueLogin", "RefreshQueuedLogin":
-		persona := personaOf(req)
-		charID, worldID := stringField(req, 2), stringField(req, 5)
-		ticket := "ticket-" + randomID()
-		return queueLoginResult(ticket, persona, charID, worldID, endpoint),
-			fmt.Sprintf("let in at once: ticket %s, world server %s", ticket, endpoint), true
+	case "QueueLogin":
+		// QueueLoginRequest: 1 PersonaId, 2 character_id, 5 world_id (the
+		// client leaves it out; the character knows its world)
+		t := loginTicket{persona: personaOf(req), charID: stringField(req, 2), worldID: stringField(req, 5), signature: randomID()}
+		if t.worldID == "" {
+			t.worldID = g.worldOf(t.charID)
+		}
+		id := "ticket-" + randomID()
+		g.mu.Lock()
+		g.tickets[id] = t
+		g.mu.Unlock()
+		return queueLoginResult(id, t, endpoint), fmt.Sprintf("let in at once: ticket %s, world server %s", id, endpoint), true
+	case "RefreshQueuedLogin":
+		id := stringField(req, 1) // RefreshQueuedLoginRequest: 1 ticket_id
+		g.mu.Lock()
+		t, known := g.tickets[id]
+		g.mu.Unlock()
+		if !known {
+			return resultCode(1), "unknown ticket " + id, true
+		}
+		return queueLoginResult(id, t, endpoint), "same ticket, same token: " + id, true
 	}
 	return nil, "", false
 }
@@ -193,20 +215,39 @@ func characterMetadata(c Character) []byte {
 }
 
 // queueLoginResult is QueueLoginResult: 1 error code, 2 ticket_id,
-// 3 QueueStats, 4 LoginToken. The token: 1 rep_endpoint, 2 world_id,
-// 3 character_id, 4 persona_id, 10 ticket_id.
-func queueLoginResult(ticket, persona, charID, worldID, endpoint string) []byte {
+// 3 QueueStats (its first number non-zero = still queued, no token), 4
+// LoginToken. The token: 1 rep_endpoint, 2 world_id, 3 character_id,
+// 4 persona_id, 8 signature, 10 ticket_id.
+//
+// The client only acts on a token whose signature differs from the last one
+// it acted on (it starts from an empty one), so the signature must be set:
+// with none, every reply looks like a repeat and the client just polls
+// RefreshQueuedLogin again, every frame.
+func queueLoginResult(ticket string, t loginTicket, endpoint string) []byte {
 	var tok []byte
 	tok = appendString(tok, 1, endpoint)
-	tok = appendString(tok, 2, worldID)
-	tok = appendString(tok, 3, charID)
-	tok = appendString(tok, 4, persona)
+	tok = appendString(tok, 2, t.worldID)
+	tok = appendString(tok, 3, t.charID)
+	tok = appendString(tok, 4, t.persona)
+	tok = appendString(tok, 8, t.signature)
 	tok = appendString(tok, 10, ticket)
 	var out []byte
 	out = appendString(out, 2, ticket)
 	out = protowire.AppendTag(out, 4, protowire.BytesType)
 	out = protowire.AppendBytes(out, tok)
 	return out
+}
+
+// worldOf is the world of a character, or this server's world.
+func (g *Gateway) worldOf(charID string) string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for _, c := range g.chars {
+		if c.ID == charID && c.WorldID != "" {
+			return c.WorldID
+		}
+	}
+	return g.world.ID
 }
 
 func (g *Gateway) charactersOf(persona string) []Character {

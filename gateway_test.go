@@ -59,6 +59,7 @@ message_type { name: "LoginToken"
   field { name: "world_id" number: 2 type: TYPE_STRING label: LABEL_OPTIONAL }
   field { name: "character_id" number: 3 type: TYPE_STRING label: LABEL_OPTIONAL }
   field { name: "persona_id" number: 4 type: TYPE_STRING label: LABEL_OPTIONAL }
+  field { name: "signature" number: 8 type: TYPE_STRING label: LABEL_OPTIONAL }
   field { name: "ticket_id" number: 10 type: TYPE_STRING label: LABEL_OPTIONAL } }
 message_type { name: "QueueLoginResult"
   field { name: "error" number: 1 type: TYPE_INT32 label: LABEL_OPTIONAL }
@@ -159,16 +160,27 @@ func TestGatewayLoginFlow(t *testing.T) {
 		t.Error("another persona sees the character")
 	}
 
-	// QueueLoginRequest: 1 PersonaId, 2 character_id, 5 world_id
-	q := personaReq("Johnny",
-		protowire.AppendString(protowire.AppendTag(nil, 2, protowire.BytesType), charID),
-		protowire.AppendString(protowire.AppendTag(nil, 5, protowire.BytesType), "quintessence-1"))
+	// QueueLoginRequest as the game sends it: 1 PersonaId, 2 character_id, no world
+	q := personaReq("Johnny", protowire.AppendString(protowire.AppendTag(nil, 2, protowire.BytesType), charID))
 	out, _, _ = gw2.Handle(svc+"QueueLogin", [][]byte{q}, "127.0.0.1:6000")
-	ql := text(decode(t, fd, "QueueLoginResult", out))
-	for _, want := range []string{`rep_endpoint:"127.0.0.1:6000"`, `character_id:"` + charID, `persona_id:"Johnny"`, `ticket_id:"ticket-`} {
+	qr := decode(t, fd, "QueueLoginResult", out)
+	ql := text(qr)
+	for _, want := range []string{`rep_endpoint:"127.0.0.1:6000"`, `world_id:"quintessence-1"`, `character_id:"` + charID, `persona_id:"Johnny"`, `ticket_id:"ticket-`, `signature:"`} {
 		if !strings.Contains(strings.ReplaceAll(ql, " ", ""), strings.ReplaceAll(want, " ", "")) {
 			t.Errorf("QueueLoginResult lacks %s:\n%s", want, ql)
 		}
+	}
+	// RefreshQueuedLogin (1 ticket_id) gets the very same ticket and token
+	ticket := qr.Get(qr.Descriptor().Fields().ByName("ticket_id")).String()
+	refresh := protowire.AppendString(protowire.AppendTag(nil, 1, protowire.BytesType), ticket)
+	out2, _, _ := gw2.Handle(svc+"RefreshQueuedLogin", [][]byte{refresh}, "127.0.0.1:6000")
+	if string(out2) != string(out) {
+		t.Errorf("refresh changed the reply:\n%s\nvs\n%s", text(decode(t, fd, "QueueLoginResult", out2)), ql)
+	}
+	unknown := protowire.AppendString(protowire.AppendTag(nil, 1, protowire.BytesType), "ticket-nope")
+	out3, _, _ := gw2.Handle(svc+"RefreshQueuedLogin", [][]byte{unknown}, "")
+	if e := decode(t, fd, "QueueLoginResult", out3); e.Get(e.Descriptor().Fields().ByName("error")).Int() == 0 {
+		t.Error("an unknown ticket must get an error code")
 	}
 
 	// delete

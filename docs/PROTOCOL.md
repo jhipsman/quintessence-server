@@ -171,3 +171,29 @@ System message ids (last data byte): 1 CONNECT_REQUEST, 2 CONNECT_ACK, 3 DISCONN
 
 The server's answer (as `CarrierImpl::ProcessSystemMessages` does it): SM_CLOCK_SYNC (u32 ms, unreliable), then SM_CONNECT_ACK, reliable, carrying the version back, plus acks for the client's datagrams. `carrier.go` implements this, re-sends unacked reliable messages after 250 ms and sends keep-alive acks. Whether New World's handshake is the default one (version only) is the next thing a capture will tell.
 
+
+## REP messages above the carrier (2026-10-23)
+
+First test of the carrier connect (capture 2026-10-22 21:16): the client accepted SM_CONNECT_ACK and sent its login, then, with no answer, an SM_DISCONNECT (reason 0) after ~15 s and a new try from the next port.
+
+- **Compression.** Bit `0x01` of the first prefix byte (`81 01`) means the datagram after its 4-byte header is one LZ4 block. Decompressed it is ordinary carrier messages.
+- **Frames.** The client's login is a reliable message on channel 0: `crc32(payload) u32 | len(payload) u32 | payload` (CRC-32/IEEE, big endian).
+- **Payload.** 16 bytes of target actor id (all zero: the REP itself), then a `MessageEnvelope`. The reader is at `0x1461ac8d0`.
+  - flags (u8): `1` → 8 more bytes, `2` → 8 more bytes, `4` → a routing block (`0x1461454d0`).
+  - message present (u8).
+  - type: a varint index into the client's type table (`GetTypeIdForIndex`). Index 0 is followed by the type's 16-byte UUID.
+  - the message body.
+- **Encoding** (`0x140876cd0` and its neighbours): u32/u64 are big endian. Strings are a varint length plus bytes. The varint's first byte gives its length: `0xxxxxxx`, `10xxxxxx`+1, `110xxxxx`+2, `1110xxxx`+3, `11110xxx`+4, low bits first (`0x140877970`).
+- **The login** is `RegistrationRequestV3Msg` (UUID `0B826B33-89F5-49E0-B8CB-FE4433427778`; the client sends type index 2). Its body:
+  - u32 `0x970c0a5d`;
+  - the build as a map: varint count 6, then (u32 key, string) pairs: 4 `6031`, 3 `400`, 2 `1`, 1 `Javelin`, 5 `6004151`, 0 `[RETAIL]`;
+  - an empty string;
+  - the login token: signature, rep_endpoint, world_id, character_id, persona_id, zeros, client capabilities `rpc-channel`, ticket_id, then zeros/defaults.
+- **The answer** the client waits for is `RegistrationResponseMsg` (UUID `104145a7-ff95-44f1-9468-21fb41c8ac2b`). Its marshal is `0x1407cceb0`, unmarshal `0x1407cd040`, and handler `0x146b6f190` ("Client connection is authorized"). Fields:
+  - u32 result: 0 = authorized; otherwise an `mm_authresult_Denied_*` reason.
+  - u64 server clock in nanoseconds, used for a clock offset.
+  - string, kept by the client at +0x598.
+  - string: the server version, which reaches `GameConnectionWrapper: received registration response from REP`.
+  - four bools. The fourth makes the client start Easy Anti-Cheat; it must be 0.
+
+`rep.go` sends this answer by type UUID (index 0), so no type table is needed.

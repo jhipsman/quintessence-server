@@ -14,9 +14,10 @@ import (
 // Amazon's Lumberyard engine, inside DTLS. This is an independent
 // implementation of its wire format (big endian throughout):
 //
-//	datagram = prefix (2 bytes, New World's own; we echo the client's)
+//	datagram = prefix (2 bytes, New World's own: bit 0x01 of the first byte
+//	           means the rest is LZ4-compressed; we echo the rest of the client's)
 //	           sequence number (u16)
-//	           messages...
+//	           messages... (an LZ4 block when compressed)
 //	message  = flags (u8) | data size (u16)
 //	           [channel (u8)       if MF_DATA_CHANNEL, else the previous one, 0 at first]
 //	           [chunks (u16)       if MF_CHUNKS]
@@ -70,10 +71,13 @@ type carrierMsg struct {
 func (m carrierMsg) Reliable() bool { return m.Flags&mfReliable != 0 }
 
 type carrierDatagram struct {
-	Prefix [2]byte
-	Seq    uint16
-	Msgs   []carrierMsg
+	Prefix     [2]byte
+	Seq        uint16
+	Msgs       []carrierMsg
+	Compressed int // compressed size of the messages, 0 if sent plain
 }
+
+const prefixCompressed = 0x01
 
 var errCarrierShort = errors.New("carrier datagram truncated")
 
@@ -85,6 +89,13 @@ func parseCarrierDatagram(b []byte) (carrierDatagram, error) {
 	copy(d.Prefix[:], b[:2])
 	d.Seq = binary.BigEndian.Uint16(b[2:4])
 	b = b[4:]
+	if d.Prefix[0]&prefixCompressed != 0 {
+		d.Compressed = len(b)
+		var err error
+		if b, err = lz4Block(b); err != nil {
+			return d, err
+		}
+	}
 	var prevSeq, prevRel [carrierChannels]uint16
 	channel := byte(0)
 	u16 := func() (uint16, bool) {
@@ -173,7 +184,11 @@ func (d carrierDatagram) marshal() []byte {
 // describeCarrier is the log text for one datagram.
 func describeCarrier(d carrierDatagram) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "    carrier datagram: prefix %02x %02x, seq %d, %d message(s)\n", d.Prefix[0], d.Prefix[1], d.Seq, len(d.Msgs))
+	comp := ""
+	if d.Compressed > 0 {
+		comp = fmt.Sprintf(", LZ4 %d bytes", d.Compressed)
+	}
+	fmt.Fprintf(&b, "    carrier datagram: prefix %02x %02x, seq %d%s, %d message(s)\n", d.Prefix[0], d.Prefix[1], d.Seq, comp, len(d.Msgs))
 	for _, m := range d.Msgs {
 		rel := "unreliable"
 		if m.Reliable() {
@@ -330,6 +345,10 @@ type carrierSession struct {
 	queue     []carrierMsg            // messages for the next datagram
 	connected bool
 	lastSent  time.Time
+
+	recvRel [carrierChannels]uint16            // last reliable seq delivered
+	pending [carrierChannels]map[uint16][]byte // reliable messages that came early
+	rep     *repSession
 }
 
 // pendingDgram is a sent datagram's reliable messages, kept until acked.
@@ -341,9 +360,10 @@ type pendingDgram struct {
 const resendAfter = 250 * time.Millisecond
 
 func newCarrierSession() *carrierSession {
-	s := &carrierSession{start: time.Now(), unacked: map[uint16]pendingDgram{}}
+	s := &carrierSession{start: time.Now(), unacked: map[uint16]pendingDgram{}, rep: newRepSession()}
 	for i := range s.sendSeq {
-		s.sendSeq[i], s.sendRel[i] = 0xffff, 0xffff
+		s.sendSeq[i], s.sendRel[i], s.recvRel[i] = 0xffff, 0xffff, 0xffff
+		s.pending[i] = map[uint16][]byte{}
 	}
 	return s
 }
@@ -376,11 +396,15 @@ func (s *carrierSession) Receive(b []byte) (out [][]byte, note string) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.prefix = d.Prefix
+	s.prefix = [2]byte{d.Prefix[0] &^ prefixCompressed, d.Prefix[1]} // we send plain
 	s.toAck = append(s.toAck, d.Seq)
 	var notes []string
 	for _, m := range d.Msgs {
-		if m.Channel != systemChannel || len(m.Data) == 0 {
+		if m.Channel != systemChannel {
+			notes = append(notes, s.data(m)...)
+			continue
+		}
+		if len(m.Data) == 0 {
 			continue
 		}
 		id, payload := m.Data[len(m.Data)-1], m.Data[:len(m.Data)-1]
@@ -412,6 +436,44 @@ func (s *carrierSession) Receive(b []byte) (out [][]byte, note string) {
 		}
 	}
 	return s.flush(true), strings.Join(notes, "\n")
+}
+
+// data handles a message on a data channel. Reliable ones are handed on once
+// each, in order; the REP layer reads channel 0.
+func (s *carrierSession) data(m carrierMsg) []string {
+	if m.Chunks > 1 {
+		return []string{fmt.Sprintf("    carrier: ch%d message in %d chunks, not handled yet", m.Channel, m.Chunks)}
+	}
+	if !m.Reliable() {
+		return s.deliver(m.Channel, m.Data)
+	}
+	ch := m.Channel
+	if !seqLess(s.recvRel[ch], m.RelSeq) {
+		return nil // already delivered: a re-send
+	}
+	s.pending[ch][m.RelSeq] = m.Data
+	var notes []string
+	for {
+		next := s.recvRel[ch] + 1
+		data, ok := s.pending[ch][next]
+		if !ok {
+			return notes
+		}
+		delete(s.pending[ch], next)
+		s.recvRel[ch] = next
+		notes = append(notes, s.deliver(ch, data)...)
+	}
+}
+
+func (s *carrierSession) deliver(ch byte, data []byte) []string {
+	if ch != 0 {
+		return []string{fmt.Sprintf("    carrier: %d bytes on ch%d (only ch0 is read)", len(data), ch)}
+	}
+	replies, notes := s.rep.Handle(data)
+	for _, r := range replies {
+		s.enqueue(0, true, r)
+	}
+	return notes
 }
 
 // Tick re-sends unacked reliable messages and keeps the connection alive;

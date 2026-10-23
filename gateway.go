@@ -129,7 +129,7 @@ func (g *Gateway) Handle(method string, msgs [][]byte, endpoint string) (reply [
 }
 
 // loginInfo is GetLoginInfoResult: 1 error code (0 = none), 2 worlds,
-// 3 characters, 4 character names, 5 and 6 counts, 7 pending world merges.
+// 3 characters, 4 character names, 5 and 6 character limits, 7 pending world merges.
 func (g *Gateway) loginInfo(chars []Character) []byte {
 	var out []byte
 	out = protowire.AppendTag(out, 2, protowire.BytesType)
@@ -137,6 +137,13 @@ func (g *Gateway) loginInfo(chars []Character) []byte {
 	for _, c := range chars {
 		out = protowire.AppendTag(out, 3, protowire.BytesType)
 		out = protowire.AppendBytes(out, characterMetadata(c))
+	}
+	// 5 and 6 are the account's character limits (the client passes them to
+	// its LoginInfoList next to the lists; most likely MaxAccountCharacters
+	// and MaxChannelCharacters). Left at 0, the menu offers no character slot.
+	for _, f := range []protowire.Number{5, 6} {
+		out = protowire.AppendTag(out, f, protowire.VarintType)
+		out = protowire.AppendVarint(out, uint64(g.world.MaxCharacters))
 	}
 	return out
 }

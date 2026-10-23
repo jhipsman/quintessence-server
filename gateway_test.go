@@ -51,7 +51,9 @@ message_type { name: "CharacterMetadata"
 message_type { name: "GetLoginInfoResult"
   field { name: "error" number: 1 type: TYPE_INT32 label: LABEL_OPTIONAL }
   field { name: "worlds" number: 2 type: TYPE_MESSAGE type_name: ".Javelin.RPC.WorldPublicMetadata" label: LABEL_REPEATED }
-  field { name: "characters" number: 3 type: TYPE_MESSAGE type_name: ".Javelin.RPC.CharacterMetadata" label: LABEL_REPEATED } }
+  field { name: "characters" number: 3 type: TYPE_MESSAGE type_name: ".Javelin.RPC.CharacterMetadata" label: LABEL_REPEATED }
+  field { name: "maxAccountCharacters" number: 5 type: TYPE_UINT32 label: LABEL_OPTIONAL }
+  field { name: "maxChannelCharacters" number: 6 type: TYPE_UINT32 label: LABEL_OPTIONAL } }
 message_type { name: "LoginToken"
   field { name: "rep_endpoint" number: 1 type: TYPE_STRING label: LABEL_OPTIONAL }
   field { name: "world_id" number: 2 type: TYPE_STRING label: LABEL_OPTIONAL }
@@ -116,7 +118,7 @@ func TestGatewayLoginFlow(t *testing.T) {
 		t.Fatal("GetLoginInfo not handled")
 	}
 	info := text(decode(t, fd, "GetLoginInfoResult", out))
-	for _, want := range []string{`id:"quintessence-1"`, `version:"1.400.6031.6004151"`, `worldType:"OpenWorld"`, `status:"ACTIVE"`, `maxAccountCharacters:4`} {
+	for _, want := range []string{`id:"quintessence-1"`, `version:"1.400.6031.6004151"`, `worldType:"OpenWorld"`, `status:"ACTIVE"`, `maxAccountCharacters:4`, `maxChannelCharacters:4`} {
 		if !strings.Contains(strings.ReplaceAll(info, " ", ""), strings.ReplaceAll(want, " ", "")) {
 			t.Errorf("GetLoginInfoResult lacks %s:\n%s", want, info)
 		}

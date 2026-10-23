@@ -86,7 +86,8 @@ The message layouts below come from the client's own `_InternalSerialize` functi
 GetLoginInfoRequest   { 1 PersonaId; 2 string channel_id; 3 bool }
 GetLoginInfoResult    { 1 int32 *error* (non-zero = the client shows an error);
                         2 repeated WorldPublicMetadata; 3 repeated CharacterMetadata;
-                        4 repeated CharacterNameData; 5 uint32; 6 uint32;
+                        4 repeated CharacterNameData; 5 uint32 *max account characters*;
+                        6 uint32 *max channel characters* (0 = no character slot in the menu);
                         7 repeated PendingWorldMerge }
 WorldPublicMetadata   { 1 id; 2 name; 3 status; 4 int32 *publicStatusCode*; 5 version;
                         6 publicName; 7 worldType; 8 int32 *maxAccountCharacters*; 9 worldSet;

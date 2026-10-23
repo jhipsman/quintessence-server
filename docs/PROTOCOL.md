@@ -184,7 +184,7 @@ First test of the carrier connect (capture 2026-10-22 21:16): the client accepte
   - type: a varint index into the client's type table (`GetTypeIdForIndex`). Index 0 is followed by the type's 16-byte UUID.
   - the message body.
 - **Encoding** (`0x140876cd0` and its neighbours): u32/u64 are big endian. Strings are a varint length plus bytes. The varint's first byte gives its length: `0xxxxxxx`, `10xxxxxx`+1, `110xxxxx`+2, `1110xxxx`+3, `11110xxx`+4, low bits first (`0x140877970`).
-- **The login** is `RegistrationRequestV3Msg` (UUID `0B826B33-89F5-49E0-B8CB-FE4433427778`; the client sends type index 2). Its body:
+- **The login** is `RegistrationRequestV2Msg` (type index 2, UUID `DA4E5889-A65C-4480-8642-0278160125A7`; see "Type table" below). Its body:
   - u32 `0x970c0a5d`;
   - the build as a map: varint count 6, then (u32 key, string) pairs: 4 `6031`, 3 `400`, 2 `1`, 1 `Javelin`, 5 `6004151`, 0 `[RETAIL]`;
   - an empty string;
@@ -206,3 +206,20 @@ Test of 21:52: the client dropped the connection 9 ms after our first answer wit
 - **REP → client.** Data from the transport (`0x146b714d0` → `0x146b6ba90` → `0x146af1d90`) is a byte stream. The parser `0x146ae44f0` reads `varint length | MessageEnvelope` frames and hands each to `0x146b6eb70`. There is no CRC and no actor id.
 
 So the first answer, sent in the client → REP framing, was misread. The server now frames its messages as `varint length | envelope`.
+
+### Type table: typeindex.json (2026-10-23)
+
+The varint type index in an envelope is a position in `typeindex.json`, which ships next to `Bin64` in the game folder: `{"generationTime": "2025-10-22T03:13:16Z", "typeIndex": [7052 UUIDs]}`. The client loads it at start (`Loading typeindex generated on`), `GetTypeIdForIndex` (`0x1461acfe0`) looks entries up, and index 0 means a 16-byte UUID follows instead. The REP can refuse a client whose table differs (`@mm_authresult_Denied_TypeIndexMismatch`).
+
+Each type registers itself with its name and UUID as strings, so `tools/re/typenames.py` names 308 of the entries and writes them to `rep_types.go` for the log. The first ones:
+
+| Index | Type |
+|---|---|
+| 1 | `RegistrationRequestMsg` |
+| 2 | `RegistrationRequestV2Msg`: **what the client sends** (earlier notes called it V3) |
+| 3 | `RegistrationResponseMsg` (`104145A7-…`, what we answer) |
+| 4, 5, 6 | `IdentifierMsg`, `IdentifierAckMsg`, `IdentifierCompleteMsg` |
+| 7 | `FragmentUpdatesMsg` |
+| 19 | `RegistrationRequestV3Msg` (`0B826B33-…`) |
+
+The rest include `SpawnActorsMsg` (574), `TimeSynchMsg` (335), `PingMsg` (349), `KickClientMsg` (271), `ClientConnectionMsg` (374) and the fragment and actor messages, which are probably what follows authorization.

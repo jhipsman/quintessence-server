@@ -38,11 +38,18 @@ var (
 	typeRegistrationResponse = mustUUID("104145a7-ff95-44f1-9468-21fb41c8ac2b")
 )
 
-// repTypeNames names the type indexes and UUIDs seen so far.
+// repTypeNames names type UUIDs, for envelopes that give one (index 0).
+// Type indexes are named by repTypeIndex (rep_types.go).
 var repTypeNames = map[string]string{
-	"index 2": "RegistrationRequestV3Msg",
 	hex.EncodeToString(typeRegistrationResponse[:]): "RegistrationResponseMsg",
 }
+
+// The login messages, by their index in the client's type table.
+const (
+	repIndexRegistrationRequest   = 1
+	repIndexRegistrationRequestV2 = 2 // what the 1.400.6031 client sends
+	repIndexRegistrationRequestV3 = 19
+)
 
 func mustUUID(s string) (u [16]byte) {
 	b, err := hex.DecodeString(strings.ReplaceAll(s, "-", ""))
@@ -162,14 +169,17 @@ type repMessage struct {
 }
 
 func (m repMessage) TypeName() string {
-	key := fmt.Sprintf("index %d", m.TypeIndex)
 	if m.TypeIndex == 0 {
-		key = hex.EncodeToString(m.Type[:])
+		key := hex.EncodeToString(m.Type[:])
+		if n := repTypeNames[key]; n != "" {
+			return n + " (" + key + ")"
+		}
+		return "unknown type " + key
 	}
-	if n := repTypeNames[key]; n != "" {
-		return n + " (" + key + ")"
+	if n := repTypeIndex[m.TypeIndex]; n != "" {
+		return fmt.Sprintf("%s (index %d)", n, m.TypeIndex)
 	}
-	return "unknown type " + key
+	return fmt.Sprintf("unnamed type index %d", m.TypeIndex)
 }
 
 // parseRepPayload reads a client -> REP payload: actor id, then envelope.
@@ -282,7 +292,8 @@ func (r *repSession) Handle(data []byte) (replies [][]byte, notes []string) {
 			continue
 		}
 		notes = append(notes, fmt.Sprintf("    REP message to actor %x: %s, %d-byte body\n      strings: %q", m.Target, m.TypeName(), len(m.Body), printableStrings(m.Body)))
-		if m.TypeIndex == 2 {
+		switch m.TypeIndex {
+		case repIndexRegistrationRequest, repIndexRegistrationRequestV2, repIndexRegistrationRequestV3:
 			replies = append(replies, repDownFrame(registrationResponse(time.Since(r.start), "quintessence-session", "Quintessence 1.400.6031.6004151")))
 			notes = append(notes, "    REP: answering RegistrationResponseMsg: authorized")
 		}

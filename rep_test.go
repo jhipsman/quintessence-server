@@ -57,7 +57,7 @@ func TestCompressedLoginDatagram(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.Target != [16]byte{} || m.TypeIndex != 2 || !strings.Contains(m.TypeName(), "RegistrationRequestV3Msg") {
+	if m.Target != [16]byte{} || m.TypeIndex != 2 || !strings.Contains(m.TypeName(), "RegistrationRequestV2Msg (index 2)") {
 		t.Errorf("message %+v", m)
 	}
 	strs := strings.Join(printableStrings(m.Body), " ")
